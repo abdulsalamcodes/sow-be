@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+
+# TypeScript
+*.tsbuildinfo
+
+# Cache
+.cache/
+.tmp/
+temp/
+
+# Package manager
+.pnpm-store/
+.npm/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test output
+coverage/
+.nyc_output/
+
+# Uploads (if generated at runtime)
+uploads/
+tmp/
+
+# Local databases
+*.sqlite
+*.db
+
+# Docker (optional)
+docker-compose.override.yml
+
+# Vercel (if applicable)
+.vercel/
+
+# Turbo (if applicable)
+.turbo/
+
+# Generated API docs (optional)
+docs/
