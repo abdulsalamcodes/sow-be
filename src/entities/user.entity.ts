@@ -18,11 +18,14 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', length: 255, unique: true })
   email!: string;
 
-  @Column({ type: 'varchar', length: 20, unique: true })
-  phone!: string;
+  @Column({ type: 'varchar', length: 20, unique: true, nullable: true })
+  phone!: string | null;
 
   @Column({ type: 'text', name: 'password_hash', nullable: true })
   passwordHash!: string | null;
+
+  @Column({ type: 'text', name: 'refresh_token_hash', nullable: true })
+  refreshTokenHash!: string | null;
 
   @Column({ type: 'text', name: 'profile_image', nullable: true })
   profileImage!: string | null;

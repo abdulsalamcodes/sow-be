@@ -23,7 +23,7 @@ export class UsersService {
     firstName: string;
     lastName: string;
     email: string;
-    phone: string;
+    phone?: string | null;
     password?: string;
     profileImage?: string;
   }): Promise<User> {
@@ -36,7 +36,7 @@ export class UsersService {
       firstName: userData.firstName,
       lastName: userData.lastName,
       email: userData.email,
-      phone: userData.phone,
+      phone: userData.phone ?? null,
       passwordHash: userData.password
         ? await bcrypt.hash(userData.password, 12)
         : null,
@@ -67,6 +67,6 @@ export class UsersService {
     id: string,
     refreshTokenHash: string | null,
   ): Promise<void> {
-    await this.userRepository.update(id, { refreshTokenHash } as any);
+    await this.userRepository.update(id, { refreshTokenHash });
   }
 }
