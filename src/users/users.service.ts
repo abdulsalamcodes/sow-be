@@ -69,4 +69,8 @@ export class UsersService {
   ): Promise<void> {
     await this.userRepository.update(id, { refreshTokenHash });
   }
+
+  async markEmailVerified(id: string): Promise<void> {
+    await this.userRepository.update(id, { emailVerified: true });
+  }
 }

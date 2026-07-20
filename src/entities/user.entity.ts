@@ -39,6 +39,9 @@ export class User extends BaseEntity {
   })
   kycStatus!: KycStatus;
 
+  @Column({ type: 'boolean', name: 'email_verified', default: false })
+  emailVerified!: boolean;
+
   @Column({ type: 'boolean', name: 'is_active', default: true })
   isActive!: boolean;
 }

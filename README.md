@@ -1,98 +1,120 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Sow — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+AI-powered financial assistant backend, built on Monnify's payment infrastructure. NestJS
+exposes both the REST API and an embedded Mastra AI agent that lets users manage their wallet,
+transfers, and spending through a conversational chat interface.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+See [SPEC.md](./SPEC.md) for the full product/architecture spec.
 
-## Description
+## Tech stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Framework:** NestJS + TypeScript
+- **ORM / Database:** TypeORM + PostgreSQL
+- **AI:** Mastra AI, embedded in the NestJS app, backed by an OpenAI-compatible LLM endpoint
+  (Ollama locally, Ollama Cloud in production)
+- **Auth:** JWT (access + refresh), email + password, optional Google OAuth, email verification
+  via OTP (Plunk)
+- **Payments & banking:** Monnify APIs
 
-## Project setup
+## Prerequisites
 
-```bash
-$ npm install
-```
+- Node.js 20 LTS or newer
+- npm
+- A PostgreSQL database (local, Docker, or a Railway instance)
+- [Ollama](https://ollama.com) running locally for AI development (or any OpenAI-compatible
+  endpoint)
 
-## Compile and run the project
+## Getting started
 
 ```bash
-# development
-$ npm run start
+# install dependencies
+npm install
 
-# watch mode
-$ npm run start:dev
+# copy the environment template and fill in your values
+cp .env.example .env
 
-# production mode
-$ npm run start:prod
+# start Postgres locally if you don't already have one running, e.g.:
+# docker run --name sow-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres
+
+# start the dev server (watch mode)
+npm run start:dev
 ```
 
-## Run tests
+The API listens on `http://localhost:<PORT>` (default `3000`). Database tables are created
+automatically in development (`synchronize: true`) — no migration step is required to get started.
+
+## Environment variables
+
+Copy [.env.example](./.env.example) to `.env` and fill in the values. See SPEC.md → *Environment
+Variables* for the authoritative reference. Notes:
+
+- `JWT_SECRET` must be set to a strong random value.
+- `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` point at any OpenAI-compatible chat endpoint —
+  defaults in `.env.example` target a local Ollama instance.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_CALLBACK_URL` are only required if you
+  want Google sign-in; email + password auth works without them.
+- `MONNIFY_*` variables are consumed by the (not yet implemented) BE2 financial modules; the AI
+  and chat layers run against in-memory stubs (`src/contracts/stubs`) until those land.
+- `PLUNK_API_KEY` is required for email OTP delivery; signup does not fail if it's missing, but
+  verification email won't be sent.
+
+## Available scripts
 
 ```bash
-# unit tests
-$ npm run test
+npm run start          # start the app
+npm run start:dev      # start in watch mode
+npm run start:debug    # start in watch mode with the debugger attached
+npm run start:prod     # run the compiled build (dist/main.js)
+npm run build          # compile TypeScript to dist/
 
-# e2e tests
-$ npm run test:e2e
+npm run test           # run unit tests
+npm run test:watch     # run unit tests in watch mode
+npm run test:cov       # run unit tests with coverage
+npm run test:e2e       # run end-to-end tests
 
-# test coverage
-$ npm run test:cov
+npm run lint           # lint and autofix
+npm run format         # format with Prettier
+
+npm run migration:generate  # generate a TypeORM migration from entity changes
+npm run migration:run       # apply pending migrations
+npm run migration:revert    # revert the last migration
 ```
 
-## Deployment
+## Validating AI tool-calling
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Before relying on a given `LLM_MODEL`, run the tool-calling validation script against a set of
+realistic prompts (stubbed financial data, no database required beyond `LLM_*` env vars):
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npx ts-node -r tsconfig-paths/register scripts/validate-tool-calling.ts
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+It prints the tool selected for each prompt so you can confirm the model reliably picks the right
+tool with valid arguments before it's used for a demo.
 
-## Resources
+## Project structure
 
-Check out a few resources that may come in handy when working with NestJS:
+```text
+src/
+├── ai/            # Mastra agent, tools, model + memory config
+├── analytics/      # spending analytics (summary, category breakdown, budget, affordability)
+├── auth/           # registration, login, JWT, Google OAuth, email OTP verification
+├── chat/           # SSE chat endpoint, conversation history, transaction intent confirm/cancel
+├── config/         # database configuration
+├── contracts/      # interfaces + injection tokens for BE2's financial services, with stubs
+├── entities/        # TypeORM entities
+├── intents/         # two-step money-movement confirmation flow (TransactionIntent lifecycle)
+├── mail/            # transactional email (Plunk)
+└── users/           # user lookup/creation
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Team ownership
 
-## Support
+This repository is a monorepo shared by two backend engineers:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- **Backend Engineer 1** owns `ai/`, `chat/`, `analytics/`, `auth/`, `mail/`, `intents/`.
+- **Backend Engineer 2** owns `wallet/`, `payments/`, `transactions/`, `banks/`, `monnify/`
+  (not yet implemented — BE1's modules consume these through the interfaces in `contracts/`
+  until they land).
 
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+See SPEC.md → *Team Ownership* and *Team Contract* for details.

@@ -4,7 +4,9 @@ node_modules/
 # Build output
 dist/
 build/
-coverage/
+
+# Mastra (local dev server output / bundled agent build)
+.mastra/
 
 # Environment variables
 .env
@@ -27,6 +29,9 @@ pnpm-debug.log*
 # TypeScript
 *.tsbuildinfo
 
+# ESLint
+.eslintcache
+
 # Cache
 .cache/
 .tmp/
@@ -43,6 +48,11 @@ temp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Editor swap files
+*.swp
+*.swo
+*~
 
 # Test output
 coverage/
@@ -65,5 +75,5 @@ docker-compose.override.yml
 # Turbo (if applicable)
 .turbo/
 
-# Generated API docs (optional)
-docs/
+# Implementation documents
+BE1-IMPLEMENTATION.md
