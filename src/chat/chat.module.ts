@@ -1,0 +1,22 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Conversation } from '../entities/conversation.entity.js';
+import { Message } from '../entities/message.entity.js';
+import { AuthModule } from '../auth/auth.module.js';
+import { AiModule } from '../ai/ai.module.js';
+import { IntentsModule } from '../intents/intents.module.js';
+import { ChatService } from './chat.service.js';
+import { ChatController } from './chat.controller.js';
+import { ConfirmIntentController } from './confirm-intent.controller.js';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Conversation, Message]),
+    AuthModule,
+    AiModule,
+    IntentsModule,
+  ],
+  providers: [ChatService],
+  controllers: [ChatController, ConfirmIntentController],
+})
+export class ChatModule {}
