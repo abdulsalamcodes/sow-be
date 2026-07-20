@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { VerifyEmailDto } from './dto/verify-email.dto.js';
 import {
   JwtAuthGuard,
   GoogleAuthGuard,
@@ -63,6 +64,23 @@ export class AuthController {
   @Get('me')
   getProfile(@CurrentUser() user: User) {
     return user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(
+    @CurrentUser('id') userId: string,
+    @Body() dto: VerifyEmailDto,
+  ) {
+    return this.authService.verifyEmail(userId, dto.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  async resendOtp(@CurrentUser('id') userId: string) {
+    return this.authService.resendOtp(userId);
   }
 
   @Post('refresh')
