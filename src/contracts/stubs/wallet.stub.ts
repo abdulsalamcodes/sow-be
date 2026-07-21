@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { WalletServiceContract, WalletSnapshot } from '../financial-services.js';
+import {
+  WalletServiceContract,
+  WalletSnapshot,
+} from '../financial-services.js';
 
 @Injectable()
 export class WalletServiceStub implements WalletServiceContract {

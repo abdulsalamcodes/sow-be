@@ -52,7 +52,12 @@ export class TransactionIntent extends BaseEntity {
   @Column({ type: 'text' })
   summary!: string;
 
-  @Column({ type: 'varchar', length: 64, name: 'idempotency_key', unique: true })
+  @Column({
+    type: 'varchar',
+    length: 64,
+    name: 'idempotency_key',
+    unique: true,
+  })
   idempotencyKey!: string;
 
   @Column({ type: 'timestamp', name: 'expires_at' })

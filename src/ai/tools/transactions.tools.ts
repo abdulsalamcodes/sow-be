@@ -11,7 +11,8 @@ export const buildTransactionsTools = (
 ) => ({
   getTransactions: createTool({
     id: 'get-transactions',
-    description: 'List the most recent wallet transactions within a number of days.',
+    description:
+      'List the most recent wallet transactions within a number of days.',
     inputSchema: z.object({
       days: z.number().int().min(1).max(90).default(30),
     }),
@@ -23,7 +24,8 @@ export const buildTransactionsTools = (
         { from, to },
       );
       const newestFirst = [...transactions].sort(
-        (first, second) => second.createdAt.getTime() - first.createdAt.getTime(),
+        (first, second) =>
+          second.createdAt.getTime() - first.createdAt.getTime(),
       );
       return { transactions: newestFirst.slice(0, MAX_RETURNED) };
     },
