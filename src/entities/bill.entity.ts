@@ -45,8 +45,8 @@ export class Bill extends BaseEntity {
   })
   customerReference: string | null;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2 })
-  amount: number;
+  @Column({ type: 'bigint', default: '0' })
+  amount: string;
 
   @Column({ type: 'uuid', name: 'transaction_id' })
   transactionId: string;

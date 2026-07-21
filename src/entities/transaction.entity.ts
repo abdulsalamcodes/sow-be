@@ -18,6 +18,7 @@ export enum TransactionStatus {
   PENDING = 'PENDING',
   SUCCESS = 'SUCCESS',
   FAILED = 'FAILED',
+  AWAITING_OTP = 'AWAITING_OTP',
 }
 
 @Entity('transactions')
@@ -41,11 +42,19 @@ export class Transaction extends BaseEntity {
   })
   monnifyReference!: string | null;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2 })
-  amount!: number;
+  @Column({ type: 'bigint', default: '0' })
+  amount!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
-  fee!: number;
+  @Column({ type: 'bigint', default: '0' })
+  fee!: string;
+
+  @Column({
+    type: 'varchar',
+    length: 255,
+    name: 'otp_reference',
+    nullable: true,
+  })
+  otpReference!: string | null;
 
   @Column({
     type: 'enum',

@@ -44,13 +44,8 @@ export class Wallet extends BaseEntity {
   @Column({ type: 'varchar', length: 3, default: 'NGN' })
   currency!: string;
 
-  @Column({
-    type: 'decimal',
-    precision: 18,
-    scale: 2,
-    default: 0,
-  })
-  balance!: number;
+  @Column({ type: 'bigint', default: '0' })
+  balance!: string;
 
   @Column({
     type: 'enum',

@@ -8,11 +8,8 @@ interface FixtureSeed {
   type: LedgerTransaction['type'];
   category: LedgerTransaction['category'];
   narration: string;
-  counterparty: string | null;
 }
 
-// Deterministic spread across ~5 weeks and every category, so spending
-// summaries, category breakdowns, and trends all have data to display.
 const FIXTURE_SEEDS: FixtureSeed[] = [
   {
     daysAgo: 0,
@@ -20,7 +17,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'CREDIT',
     category: 'FUNDING',
     narration: 'Wallet funding',
-    counterparty: null,
   },
   {
     daysAgo: 1,
@@ -28,7 +24,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Lunch split',
-    counterparty: 'Aisha Bello',
   },
   {
     daysAgo: 2,
@@ -36,7 +31,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'BILL_PAYMENT',
     narration: 'Airtime',
-    counterparty: 'MTN',
   },
   {
     daysAgo: 3,
@@ -44,7 +38,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Rent contribution',
-    counterparty: 'Chidi Okafor',
   },
   {
     daysAgo: 4,
@@ -52,7 +45,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'BILL_PAYMENT',
     narration: 'Electricity',
-    counterparty: 'IKEDC',
   },
   {
     daysAgo: 5,
@@ -60,7 +52,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Data gift',
-    counterparty: 'Aisha Bello',
   },
   {
     daysAgo: 8,
@@ -68,7 +59,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'CREDIT',
     category: 'FUNDING',
     narration: 'Wallet funding',
-    counterparty: null,
   },
   {
     daysAgo: 9,
@@ -76,7 +66,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Groceries',
-    counterparty: 'Market Square',
   },
   {
     daysAgo: 10,
@@ -84,7 +73,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'BILL_PAYMENT',
     narration: 'DSTV',
-    counterparty: 'MultiChoice',
   },
   {
     daysAgo: 12,
@@ -92,7 +80,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'WITHDRAWAL',
     narration: 'ATM withdrawal',
-    counterparty: null,
   },
   {
     daysAgo: 15,
@@ -100,7 +87,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Loan repayment',
-    counterparty: 'Chidi Okafor',
   },
   {
     daysAgo: 17,
@@ -108,7 +94,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'BILL_PAYMENT',
     narration: 'Data bundle',
-    counterparty: 'Glo',
   },
   {
     daysAgo: 20,
@@ -116,7 +101,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'CREDIT',
     category: 'FUNDING',
     narration: 'Wallet funding',
-    counterparty: null,
   },
   {
     daysAgo: 22,
@@ -124,7 +108,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Gift',
-    counterparty: 'Ngozi Eze',
   },
   {
     daysAgo: 25,
@@ -132,7 +115,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'BILL_PAYMENT',
     narration: 'Electricity',
-    counterparty: 'IKEDC',
   },
   {
     daysAgo: 28,
@@ -140,7 +122,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'TRANSFER',
     narration: 'Dinner',
-    counterparty: 'Aisha Bello',
   },
   {
     daysAgo: 30,
@@ -148,7 +129,6 @@ const FIXTURE_SEEDS: FixtureSeed[] = [
     type: 'DEBIT',
     category: 'WITHDRAWAL',
     narration: 'ATM withdrawal',
-    counterparty: null,
   },
 ];
 
@@ -158,12 +138,13 @@ const toLedgerTransaction = (
   now: number,
 ): LedgerTransaction => ({
   id: `fixture-${index + 1}`,
-  amountKobo: seed.amountNaira * NAIRA,
+  amountKobo: String(seed.amountNaira * NAIRA),
+  feeKobo: '0',
   type: seed.type,
   category: seed.category,
   narration: seed.narration,
-  counterparty: seed.counterparty,
   status: 'SUCCESS',
+  monnifyReference: null,
   createdAt: new Date(now - seed.daysAgo * 24 * 60 * 60 * 1000),
 });
 
