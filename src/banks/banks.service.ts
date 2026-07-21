@@ -80,9 +80,12 @@ export class BanksService implements BanksServiceContract {
   }
 
   async listBanks(): Promise<Array<{ bankCode: string; bankName: string }>> {
-    const response = await this.monnify.get<{ list: Array<{ bankCode: string; bankName: string }> }>(
-      '/api/v1/banks',
-    );
-    return response.list;
+    const raw = await this.monnify.get<
+      Array<{ code: string; name: string }>
+    >('/api/v1/banks');
+    return raw.map((bank) => ({
+      bankCode: bank.code,
+      bankName: bank.name,
+    }));
   }
 }

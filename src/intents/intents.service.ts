@@ -133,6 +133,13 @@ export class IntentsService {
     userId: string,
     input: CreateTransferIntentInput,
   ): Promise<ResolvedAccount> {
+    if (input.accountNumber && input.bankCode) {
+      return this.banksService.resolveAccountName(
+        input.accountNumber,
+        input.bankCode,
+      );
+    }
+
     if (input.recipientName) {
       const beneficiary = await this.banksService.findBeneficiaryByName(
         userId,
@@ -144,13 +151,6 @@ export class IntentsService {
         );
       }
       return beneficiary;
-    }
-
-    if (input.accountNumber && input.bankCode) {
-      return this.banksService.resolveAccountName(
-        input.accountNumber,
-        input.bankCode,
-      );
     }
 
     throw new BadRequestException(
@@ -198,6 +198,26 @@ export class IntentsService {
 
   private buildExpiry(): Date {
     return new Date(Date.now() + INTENT_TTL_MINUTES * 60 * 1000);
+  }
+
+  async findPendingIntent(
+    userId: string,
+  ): Promise<{ intentId: string; summary: string; expiresAt: Date } | null> {
+    const intent = await this.intentRepository.findOne({
+      where: { userId, status: IntentStatus.PENDING },
+      order: { createdAt: 'DESC' },
+    });
+    if (!intent) return null;
+    if (intent.expiresAt.getTime() <= Date.now()) {
+      intent.status = IntentStatus.EXPIRED;
+      await this.intentRepository.save(intent);
+      return null;
+    }
+    return {
+      intentId: intent.id,
+      summary: intent.summary,
+      expiresAt: intent.expiresAt,
+    };
   }
 
   private isExpired(expiresAt: Date): boolean {

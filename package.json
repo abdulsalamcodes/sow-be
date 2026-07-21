@@ -24,10 +24,6 @@
     "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^3.0.12",
-    "@mastra/core": "^1.51.0",
-    "@mastra/memory": "^1.23.0",
-    "@mastra/pg": "^1.16.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -35,7 +31,6 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.3",
-    "ai": "^7.0.31",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",

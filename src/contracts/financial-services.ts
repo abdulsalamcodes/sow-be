@@ -106,6 +106,7 @@ export interface BanksServiceContract {
     userId: string,
     name: string,
   ): Promise<ResolvedAccount | null>;
+  listBanks(): Promise<Array<{ bankCode: string; bankName: string }>>;
 }
 
 export interface BillsServiceContract {

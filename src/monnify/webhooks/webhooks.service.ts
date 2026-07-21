@@ -94,12 +94,13 @@ export class WebhooksService {
       return;
     }
 
+    const amountKobo = data.amountPaid * 100;
     await this.transactionRepository.save(
       this.transactionRepository.create({
         walletId: wallet.id,
         type: TransactionType.CREDIT,
         category: TransactionCategory.FUNDING,
-        amount: String(data.amountPaid),
+        amount: String(amountKobo),
         fee: '0',
         monnifyReference: data.transactionReference,
         status: TransactionStatus.SUCCESS,
@@ -110,7 +111,7 @@ export class WebhooksService {
 
     await this.walletRepository.update(
       { id: wallet.id },
-      { balance: () => `balance + ${data.amountPaid}` },
+      { balance: () => `balance + ${amountKobo}` },
     );
   }
 

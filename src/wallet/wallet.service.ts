@@ -39,13 +39,17 @@ export class WalletService implements WalletServiceContract {
         '/api/v2/disbursements/wallet-balance',
         { accountNumber: this.configService.getOrThrow<string>('MONNIFY_WALLET_ACCOUNT_NUMBER') },
       );
-      monnifyBalance = String(balanceData.amount);
+      const amount = balanceData?.amount;
+      if (typeof amount === 'number' && !Number.isNaN(amount)) {
+        monnifyBalance = String(amount);
+      }
     } catch (error) {
       this.logger.warn('Failed to fetch Monnify balance, using local cache', error as Error);
     }
 
+    const balanceKobo = monnifyBalance ?? wallet.balance;
     return {
-      balanceKobo: monnifyBalance ?? wallet.balance,
+      balanceKobo: typeof balanceKobo === 'string' ? balanceKobo : '0',
       accountNumber: wallet.accountNumber,
       bankName: wallet.bankName,
       accountName: null,

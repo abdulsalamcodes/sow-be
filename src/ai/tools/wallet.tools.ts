@@ -1,31 +1,31 @@
-import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { WalletServiceContract } from '../../contracts/financial-services.js';
-import { requireUserId } from './context.js';
+import type { WalletServiceContract } from '../../contracts/financial-services.js';
+import type { ToolDefinition } from './types.js';
 
-export const buildWalletTools = (walletService: WalletServiceContract) => ({
-  getWalletBalance: createTool({
-    id: 'get-wallet-balance',
+export const buildWalletTools = (
+  walletService: WalletServiceContract,
+): ToolDefinition[] => [
+  {
+    name: 'get-wallet-balance',
     description: "Get the user's current wallet balance.",
     inputSchema: z.object({}),
-    execute: async (_input, context) => {
-      const wallet = await walletService.getWallet(requireUserId(context));
+    execute: async (userId: string) => {
+      const wallet = await walletService.getWallet(userId);
       return { balanceKobo: wallet.balanceKobo, currency: 'NGN' };
     },
-  }),
-
-  getFundingDetails: createTool({
-    id: 'get-funding-details',
+  },
+  {
+    name: 'get-funding-details',
     description:
       'Get the virtual account details the user can pay into to fund their wallet.',
     inputSchema: z.object({}),
-    execute: async (_input, context) => {
-      const wallet = await walletService.getWallet(requireUserId(context));
+    execute: async (userId: string) => {
+      const wallet = await walletService.getWallet(userId);
       return {
         accountNumber: wallet.accountNumber,
         bankName: wallet.bankName,
         accountName: wallet.accountName,
       };
     },
-  }),
-});
+  },
+];
