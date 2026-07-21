@@ -52,12 +52,21 @@ export interface PaymentsServiceContract {
 }
 
 export interface TransactionsServiceContract {
-  listTransactions(userId: string, range: DateRange): Promise<LedgerTransaction[]>;
+  listTransactions(
+    userId: string,
+    range: DateRange,
+  ): Promise<LedgerTransaction[]>;
 }
 
 export interface BanksServiceContract {
-  resolveAccountName(accountNumber: string, bankCode: string): Promise<ResolvedAccount>;
-  findBeneficiaryByName(userId: string, name: string): Promise<ResolvedAccount | null>;
+  resolveAccountName(
+    accountNumber: string,
+    bankCode: string,
+  ): Promise<ResolvedAccount>;
+  findBeneficiaryByName(
+    userId: string,
+    name: string,
+  ): Promise<ResolvedAccount | null>;
 }
 
 export const WALLET_SERVICE = Symbol('WALLET_SERVICE');

@@ -14,7 +14,10 @@ import {
   IntentStatus,
   TransferIntentPayload,
 } from '../entities/transaction-intent.entity.js';
-import { BANKS_SERVICE, PAYMENTS_SERVICE } from '../contracts/financial-services.js';
+import {
+  BANKS_SERVICE,
+  PAYMENTS_SERVICE,
+} from '../contracts/financial-services.js';
 import type {
   BanksServiceContract,
   PaymentsServiceContract,
@@ -76,7 +79,10 @@ export class IntentsService {
     };
   }
 
-  async confirm(userId: string, intentId: string): Promise<IntentExecutionResult> {
+  async confirm(
+    userId: string,
+    intentId: string,
+  ): Promise<IntentExecutionResult> {
     const intent = await this.loadOwnedIntent(userId, intentId);
     this.assertPending(intent);
 
@@ -86,7 +92,10 @@ export class IntentsService {
     return this.execute(intent);
   }
 
-  async cancel(userId: string, intentId: string): Promise<{ status: IntentStatus }> {
+  async cancel(
+    userId: string,
+    intentId: string,
+  ): Promise<{ status: IntentStatus }> {
     const intent = await this.loadOwnedIntent(userId, intentId);
     if (intent.status !== IntentStatus.PENDING) {
       throw new ConflictException('This request can no longer be cancelled');
@@ -96,7 +105,9 @@ export class IntentsService {
     return { status: intent.status };
   }
 
-  private async execute(intent: TransactionIntent): Promise<IntentExecutionResult> {
+  private async execute(
+    intent: TransactionIntent,
+  ): Promise<IntentExecutionResult> {
     const result = await this.paymentsService.executeTransfer({
       userId: intent.userId,
       amountKobo: Number(intent.amountKobo),
@@ -136,17 +147,24 @@ export class IntentsService {
     }
 
     if (input.accountNumber && input.bankCode) {
-      return this.banksService.resolveAccountName(input.accountNumber, input.bankCode);
+      return this.banksService.resolveAccountName(
+        input.accountNumber,
+        input.bankCode,
+      );
     }
 
-    throw new BadRequestException('Provide a beneficiary name or an account number and bank');
+    throw new BadRequestException(
+      'Provide a beneficiary name or an account number and bank',
+    );
   }
 
   private async loadOwnedIntent(
     userId: string,
     intentId: string,
   ): Promise<TransactionIntent> {
-    const intent = await this.intentRepository.findOne({ where: { id: intentId } });
+    const intent = await this.intentRepository.findOne({
+      where: { id: intentId },
+    });
     if (!intent || intent.userId !== userId) {
       throw new NotFoundException('Transaction request not found');
     }
@@ -154,7 +172,10 @@ export class IntentsService {
   }
 
   private assertPending(intent: TransactionIntent): void {
-    if (intent.status === IntentStatus.PENDING && this.isExpired(intent.expiresAt)) {
+    if (
+      intent.status === IntentStatus.PENDING &&
+      this.isExpired(intent.expiresAt)
+    ) {
       intent.status = IntentStatus.EXPIRED;
       void this.intentRepository.save(intent);
       throw new ConflictException('This request expired — ask Sow again');

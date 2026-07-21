@@ -1,4 +1,7 @@
-import { WalletServiceContract, TransactionsServiceContract } from '../../contracts/financial-services.js';
+import {
+  WalletServiceContract,
+  TransactionsServiceContract,
+} from '../../contracts/financial-services.js';
 import { AnalyticsService } from '../../analytics/analytics.service.js';
 import { IntentsService } from '../../intents/intents.service.js';
 import { buildWalletTools } from './wallet.tools.js';

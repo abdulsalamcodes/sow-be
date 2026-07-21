@@ -12,8 +12,13 @@ const transferInputSchema = z
     narration: z.string().max(100).optional(),
   })
   .refine(
-    (input) => Boolean(input.recipientName) || Boolean(input.accountNumber && input.bankCode),
-    { message: 'Provide a recipient name or both an account number and bank code' },
+    (input) =>
+      Boolean(input.recipientName) ||
+      Boolean(input.accountNumber && input.bankCode),
+    {
+      message:
+        'Provide a recipient name or both an account number and bank code',
+    },
   );
 
 export const buildTransferTools = (intentsService: IntentsService) => ({

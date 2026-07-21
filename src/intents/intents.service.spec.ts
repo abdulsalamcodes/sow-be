@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { IntentsService } from './intents.service.js';
 import {
@@ -19,7 +23,9 @@ const RECIPIENT: ResolvedAccount = {
   bankName: 'GTBank',
 };
 
-const buildIntent = (overrides: Partial<TransactionIntent> = {}): TransactionIntent =>
+const buildIntent = (
+  overrides: Partial<TransactionIntent> = {},
+): TransactionIntent =>
   ({
     id: 'intent-1',
     userId: 'user-1',
@@ -44,15 +50,22 @@ const buildRepository = (stored: TransactionIntent | null) => {
     save,
     findOne: jest.fn(() => Promise.resolve(stored)),
   };
-  return { repository: repository as unknown as Repository<TransactionIntent>, save };
+  return {
+    repository: repository as unknown as Repository<TransactionIntent>,
+    save,
+  };
 };
 
-const buildBanks = (beneficiary: ResolvedAccount | null): BanksServiceContract => ({
+const buildBanks = (
+  beneficiary: ResolvedAccount | null,
+): BanksServiceContract => ({
   resolveAccountName: () => Promise.resolve(RECIPIENT),
   findBeneficiaryByName: () => Promise.resolve(beneficiary),
 });
 
-const buildPayments = (result: TransferResult): PaymentsServiceContract & {
+const buildPayments = (
+  result: TransferResult,
+): PaymentsServiceContract & {
   executeTransfer: jest.Mock;
 } => ({
   executeTransfer: jest.fn(() => Promise.resolve(result)),
@@ -86,7 +99,10 @@ describe('IntentsService', () => {
       );
 
       await expect(
-        service.createTransferIntent('user-1', { amountKobo: 500_000, recipientName: 'Ghost' }),
+        service.createTransferIntent('user-1', {
+          amountKobo: 500_000,
+          recipientName: 'Ghost',
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -94,29 +110,41 @@ describe('IntentsService', () => {
   describe('confirm', () => {
     it('executes the transfer once with the stored idempotency key', async () => {
       const { repository } = buildRepository(buildIntent());
-      const payments = buildPayments({ reference: 'ref-99', status: 'SUCCESS' });
-      const service = new IntentsService(repository, buildBanks(RECIPIENT), payments);
+      const payments = buildPayments({
+        reference: 'ref-99',
+        status: 'SUCCESS',
+      });
+      const service = new IntentsService(
+        repository,
+        buildBanks(RECIPIENT),
+        payments,
+      );
 
       const result = await service.confirm('user-1', 'intent-1');
 
       expect(result).toEqual({ status: 'EXECUTED', reference: 'ref-99' });
       expect(payments.executeTransfer).toHaveBeenCalledTimes(1);
       expect(payments.executeTransfer).toHaveBeenCalledWith(
-        expect.objectContaining({ idempotencyKey: 'key-1', amountKobo: 500_000 }),
+        expect.objectContaining({
+          idempotencyKey: 'key-1',
+          amountKobo: 500_000,
+        }),
       );
     });
 
     it('rejects confirming an already-executed intent', async () => {
-      const { repository } = buildRepository(buildIntent({ status: IntentStatus.EXECUTED }));
+      const { repository } = buildRepository(
+        buildIntent({ status: IntentStatus.EXECUTED }),
+      );
       const service = new IntentsService(
         repository,
         buildBanks(RECIPIENT),
         buildPayments({ reference: 'r', status: 'SUCCESS' }),
       );
 
-      await expect(service.confirm('user-1', 'intent-1')).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.confirm('user-1', 'intent-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('expires a pending intent that is past its expiry', async () => {
@@ -129,22 +157,24 @@ describe('IntentsService', () => {
         buildPayments({ reference: 'r', status: 'SUCCESS' }),
       );
 
-      await expect(service.confirm('user-1', 'intent-1')).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.confirm('user-1', 'intent-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('hides intents owned by another user', async () => {
-      const { repository } = buildRepository(buildIntent({ userId: 'someone-else' }));
+      const { repository } = buildRepository(
+        buildIntent({ userId: 'someone-else' }),
+      );
       const service = new IntentsService(
         repository,
         buildBanks(RECIPIENT),
         buildPayments({ reference: 'r', status: 'SUCCESS' }),
       );
 
-      await expect(service.confirm('user-1', 'intent-1')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.confirm('user-1', 'intent-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('marks the intent failed when the transfer fails', async () => {
@@ -152,12 +182,19 @@ describe('IntentsService', () => {
       const service = new IntentsService(
         repository,
         buildBanks(RECIPIENT),
-        buildPayments({ reference: '', status: 'FAILED', failureReason: 'insufficient funds' }),
+        buildPayments({
+          reference: '',
+          status: 'FAILED',
+          failureReason: 'insufficient funds',
+        }),
       );
 
       const result = await service.confirm('user-1', 'intent-1');
 
-      expect(result).toEqual({ status: 'FAILED', failureReason: 'insufficient funds' });
+      expect(result).toEqual({
+        status: 'FAILED',
+        failureReason: 'insufficient funds',
+      });
     });
   });
 });

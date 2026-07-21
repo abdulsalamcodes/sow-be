@@ -45,8 +45,8 @@ automatically in development (`synchronize: true`) — no migration step is requ
 
 ## Environment variables
 
-Copy [.env.example](./.env.example) to `.env` and fill in the values. See SPEC.md → *Environment
-Variables* for the authoritative reference. Notes:
+Copy [.env.example](./.env.example) to `.env` and fill in the values. See SPEC.md → _Environment
+Variables_ for the authoritative reference. Notes:
 
 - `JWT_SECRET` must be set to a strong random value.
 - `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` point at any OpenAI-compatible chat endpoint —
@@ -107,14 +107,3 @@ src/
 ├── mail/            # transactional email (Plunk)
 └── users/           # user lookup/creation
 ```
-
-## Team ownership
-
-This repository is a monorepo shared by two backend engineers:
-
-- **Backend Engineer 1** owns `ai/`, `chat/`, `analytics/`, `auth/`, `mail/`, `intents/`.
-- **Backend Engineer 2** owns `wallet/`, `payments/`, `transactions/`, `banks/`, `monnify/`
-  (not yet implemented — BE1's modules consume these through the interfaces in `contracts/`
-  until they land).
-
-See SPEC.md → *Team Ownership* and *Team Contract* for details.

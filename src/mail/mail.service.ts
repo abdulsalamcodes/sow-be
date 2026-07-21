@@ -43,12 +43,16 @@ export class MailService {
       });
     } catch (error) {
       this.logger.error(`Plunk request failed for ${to}`, error as Error);
-      throw new ServiceUnavailableException('Email delivery failed — try resend');
+      throw new ServiceUnavailableException(
+        'Email delivery failed — try resend',
+      );
     }
 
     if (!response.ok) {
       this.logger.error(`Plunk returned ${response.status} for ${to}`);
-      throw new ServiceUnavailableException('Email delivery failed — try resend');
+      throw new ServiceUnavailableException(
+        'Email delivery failed — try resend',
+      );
     }
   }
 }

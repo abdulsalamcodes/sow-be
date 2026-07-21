@@ -8,10 +8,14 @@ import { buildFixtureTransactions } from './fixture-transactions.js';
 
 @Injectable()
 export class TransactionsServiceStub implements TransactionsServiceContract {
-  listTransactions(_userId: string, range: DateRange): Promise<LedgerTransaction[]> {
+  listTransactions(
+    _userId: string,
+    range: DateRange,
+  ): Promise<LedgerTransaction[]> {
     const withinRange = buildFixtureTransactions().filter(
       (transaction) =>
-        transaction.createdAt >= range.from && transaction.createdAt <= range.to,
+        transaction.createdAt >= range.from &&
+        transaction.createdAt <= range.to,
     );
     return Promise.resolve(withinRange);
   }

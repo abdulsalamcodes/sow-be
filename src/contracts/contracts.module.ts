@@ -19,6 +19,11 @@ import { BanksServiceStub } from './stubs/banks.stub.js';
     { provide: TRANSACTIONS_SERVICE, useClass: TransactionsServiceStub },
     { provide: BANKS_SERVICE, useClass: BanksServiceStub },
   ],
-  exports: [WALLET_SERVICE, PAYMENTS_SERVICE, TRANSACTIONS_SERVICE, BANKS_SERVICE],
+  exports: [
+    WALLET_SERVICE,
+    PAYMENTS_SERVICE,
+    TRANSACTIONS_SERVICE,
+    BANKS_SERVICE,
+  ],
 })
 export class ContractsModule {}
