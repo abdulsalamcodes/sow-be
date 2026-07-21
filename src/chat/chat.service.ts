@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RequestContext } from '@mastra/core/request-context';
 import type { Agent } from '@mastra/core/agent';
-import type { Response } from 'express';
 import { Conversation } from '../entities/conversation.entity.js';
 import { Message, MessageRole } from '../entities/message.entity.js';
 import { SOW_AGENT } from '../ai/ai.constants.js';
@@ -11,11 +10,6 @@ import { USER_ID_KEY } from '../ai/runtime-context.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 
 const TITLE_MAX_LENGTH = 60;
-
-interface StreamAccumulator {
-  text: string;
-  lastToolName: string | null;
-}
 
 @Injectable()
 export class ChatService {
@@ -30,20 +24,14 @@ export class ChatService {
     private readonly messageRepository: Repository<Message>,
   ) {}
 
-  async streamReply(userId: string, dto: SendMessageDto, response: Response): Promise<void> {
+  async reply(userId: string, dto: SendMessageDto): Promise<{ text: string }> {
     const conversation = await this.loadOrCreateConversation(userId, dto);
     await this.saveMessage(conversation.id, MessageRole.USER, dto.message, null);
 
-    this.openEventStream(response);
-    const accumulator = await this.streamAgent(userId, conversation.id, dto.message, response);
+    const text = await this.runAgent(userId, conversation.id, dto.message);
 
-    await this.saveMessage(
-      conversation.id,
-      MessageRole.ASSISTANT,
-      accumulator.text,
-      accumulator.lastToolName,
-    );
-    response.end();
+    await this.saveMessage(conversation.id, MessageRole.ASSISTANT, text, null);
+    return { text };
   }
 
   async listConversations(userId: string): Promise<Conversation[]> {
@@ -61,47 +49,28 @@ export class ChatService {
     });
   }
 
-  private async streamAgent(
+  private async runAgent(
     userId: string,
     conversationId: string,
     message: string,
-    response: Response,
-  ): Promise<StreamAccumulator> {
+  ): Promise<string> {
     const requestContext = new RequestContext([[USER_ID_KEY, userId]]);
     const output = await this.agent.stream(message, {
       memory: { thread: conversationId, resource: userId },
       requestContext,
     });
 
-    const accumulator: StreamAccumulator = { text: '', lastToolName: null };
-    const reader = output.fullStream.getReader();
+    let text = '';
     try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
+      for await (const chunk of output.fullStream) {
+        if (chunk.type === 'text-delta') {
+          text += (chunk.payload as { text: string }).text;
         }
-        this.accumulate(accumulator, value);
-        response.write(`data: ${JSON.stringify(value)}\n\n`);
       }
     } catch (error) {
-      this.logger.error('Agent stream failed', error as Error);
-      response.write(`event: error\ndata: "stream failed"\n\n`);
+      this.logger.error('Agent run failed', error as Error);
     }
-    return accumulator;
-  }
-
-  private accumulate(
-    accumulator: StreamAccumulator,
-    chunk: { type: string; payload?: unknown },
-  ): void {
-    if (chunk.type === 'text-delta') {
-      accumulator.text += (chunk.payload as { text: string }).text;
-      return;
-    }
-    if (chunk.type === 'tool-call') {
-      accumulator.lastToolName = (chunk.payload as { toolName: string }).toolName;
-    }
+    return text;
   }
 
   private async loadOrCreateConversation(
@@ -143,10 +112,4 @@ export class ChatService {
     );
   }
 
-  private openEventStream(response: Response): void {
-    response.setHeader('Content-Type', 'text/event-stream');
-    response.setHeader('Cache-Control', 'no-cache');
-    response.setHeader('Connection', 'keep-alive');
-    response.flushHeaders();
-  }
 }

@@ -30,7 +30,7 @@ export class KycController {
   constructor(private readonly kycService: KycService) {}
 
   @Post('submit')
-  @UseGuards(EmailVerifiedGuard)
+  // @UseGuards(EmailVerifiedGuard)
   async submitKyc(
     @CurrentUser('id') userId: string,
     @Body() dto: SubmitKycDto,

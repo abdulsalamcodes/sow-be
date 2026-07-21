@@ -23,6 +23,10 @@ export class WalletService implements WalletServiceContract {
     private readonly configService: ConfigService,
   ) {}
 
+  async exists(userId: string): Promise<Wallet | null> {
+    return this.walletRepository.findOne({ where: { userId } });
+  }
+
   async getWallet(userId: string): Promise<WalletSnapshot> {
     const wallet = await this.walletRepository.findOne({ where: { userId } });
     if (!wallet) {

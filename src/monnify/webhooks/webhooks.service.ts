@@ -9,6 +9,25 @@ import { Transaction, TransactionStatus, TransactionType, TransactionCategory } 
 import { Bill, BillStatus } from '../../entities/bill.entity.js';
 import { MonnifyWebhookPayload, ReservedAccountWebhookData, DisbursementWebhookData, BillPaymentWebhookData } from './webhooks.types.js';
 
+function normaliseIncomingTransfer(data: Record<string, unknown>): ReservedAccountWebhookData {
+  const dest = data.destinationAccountInformation as Record<string, string> | undefined;
+  return {
+    transactionReference: data.transactionReference as string,
+    paymentReference: data.paymentReference as string,
+    amountPaid: data.amountPaid as number,
+    totalPayable: (data.totalPayable ?? data.amountPaid) as number,
+    settlementAmount: data.settlementAmount as number,
+    paidOn: data.paidOn as string,
+    paymentStatus: data.paymentStatus as string,
+    currency: data.currency as string,
+    paymentMethod: data.paymentMethod as string,
+    accountNumber: dest?.accountNumber ?? (data.accountNumber as string),
+    bankCode: dest?.bankCode ?? (data.bankCode as string),
+    bankName: dest?.bankName ?? (data.bankName as string),
+    customer: data.customer as { email: string; name: string },
+  };
+}
+
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
@@ -28,7 +47,7 @@ export class WebhooksService {
 
   verifySignature(rawBody: Buffer, signatureHeader: string): void {
     const hmac = createHmac('sha512', this.secretKey);
-    const computed = `sha512=${hmac.update(rawBody).digest('hex')}`;
+    const computed = hmac.update(rawBody).digest('hex');
     if (signatureHeader.length !== computed.length) {
       throw new UnauthorizedException('Invalid webhook signature');
     }
@@ -39,9 +58,11 @@ export class WebhooksService {
 
   async handleEvent(payload: MonnifyWebhookPayload): Promise<void> {
     try {
+      const data = payload.eventData as Record<string, unknown>;
       switch (payload.eventType) {
         case 'RESERVED_ACCOUNT_TRANSACTION':
-          await this.handleIncomingTransfer(payload.eventData as unknown as ReservedAccountWebhookData);
+        case 'SUCCESSFUL_TRANSACTION':
+          await this.handleIncomingTransfer(normaliseIncomingTransfer(data));
           break;
         case 'SUCCESSFUL_DISBURSEMENT':
         case 'FAILED_DISBURSEMENT':

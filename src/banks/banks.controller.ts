@@ -56,8 +56,6 @@ export class BanksController {
 
   @Get('list')
   listBanks() {
-    return this.banksService['monnify'].get<{ list: Array<{ bankCode: string; bankName: string }> }>(
-      '/api/v1/banks',
-    );
+    return this.banksService.listBanks();
   }
 }

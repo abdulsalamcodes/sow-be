@@ -124,7 +124,8 @@ export class MonnifyHttpClient {
         }
         throw new MonnifyError('Authentication failed after retry');
       }
-      const envelope: MonnifyEnvelope<T> = await response.json();
+      const rawText = await response.text();
+      const envelope: MonnifyEnvelope<T> = JSON.parse(rawText);
       if (!envelope.requestSuccessful) {
         throw new MonnifyError(envelope.responseMessage, envelope.responseCode);
       }

@@ -18,12 +18,13 @@ import { MonnifyHttpClient } from '../monnify/monnify-http-client.js';
 import { MonnifyError } from '../monnify/monnify-error.js';
 import {
   WalletBalanceResponse,
-  BillerCategoryResponse,
-  BillerResponse,
-  BillerProductResponse,
+  MonnifyCategory,
+  MonnifyBiller,
+  MonnifyProduct,
   CustomerValidationResponse,
   VendResponse,
   RequeryResponse,
+  PaginatedContent,
 } from '../monnify/monnify.types.js';
 
 @Injectable()
@@ -41,13 +42,17 @@ export class BillsService implements BillsServiceContract {
     private readonly configService: ConfigService,
   ) {}
 
+  private extractArray<T>(response: T[] | PaginatedContent<T>): T[] {
+    return Array.isArray(response) ? response : response.content;
+  }
+
   async listCategories(): Promise<BillerCategory[]> {
-    const responseBody = await this.monnify.get<BillerCategoryResponse[]>(
+    const responseBody = await this.monnify.get<PaginatedContent<MonnifyCategory>>(
       '/api/v1/vas/bills-payment/biller-categories',
     );
-    return responseBody.map((item) => ({
-      categoryCode: item.categoryCode,
-      categoryName: item.categoryName,
+    return this.extractArray(responseBody).map((item) => ({
+      categoryCode: item.code,
+      categoryName: item.name,
     }));
   }
 
@@ -56,11 +61,11 @@ export class BillsService implements BillsServiceContract {
     if (categoryCode) {
       query.categoryCode = categoryCode;
     }
-    const responseBody = await this.monnify.get<BillerResponse[]>(
+    const responseBody = await this.monnify.get<PaginatedContent<MonnifyBiller>>(
       '/api/v1/vas/bills-payment/billers',
       query,
     );
-    return responseBody.map((item) => ({
+    return this.extractArray(responseBody).map((item) => ({
       billerCode: item.billerCode,
       billerName: item.billerName,
       categoryCode: item.categoryCode,
@@ -68,11 +73,11 @@ export class BillsService implements BillsServiceContract {
   }
 
   async getBillerProducts(billerCode: string): Promise<BillerProduct[]> {
-    const responseBody = await this.monnify.get<BillerProductResponse[]>(
+    const responseBody = await this.monnify.get<PaginatedContent<MonnifyProduct>>(
       '/api/v1/vas/bills-payment/biller-products',
       { billerCode },
     );
-    return responseBody.map((item) => ({
+    return this.extractArray(responseBody).map((item) => ({
       productCode: item.productCode,
       productName: item.productName,
       amount: item.amount,

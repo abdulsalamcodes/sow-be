@@ -45,18 +45,22 @@ export interface WalletBalanceResponse {
   amount: number;
 }
 
-export interface BillerCategoryResponse {
-  categoryCode: string;
-  categoryName: string;
+export interface PaginatedContent<T> {
+  content: T[];
 }
 
-export interface BillerResponse {
+export interface MonnifyCategory {
+  code: string;
+  name: string;
+}
+
+export interface MonnifyBiller {
   billerCode: string;
   billerName: string;
   categoryCode: string;
 }
 
-export interface BillerProductResponse {
+export interface MonnifyProduct {
   productCode: string;
   productName: string;
   amount: number;

@@ -1,6 +1,7 @@
 export interface MonnifyWebhookPayload {
   eventType:
     | 'RESERVED_ACCOUNT_TRANSACTION'
+    | 'SUCCESSFUL_TRANSACTION'
     | 'SUCCESSFUL_DISBURSEMENT'
     | 'FAILED_DISBURSEMENT'
     | 'SUCCESSFUL_BILL_PAYMENT'
@@ -12,7 +13,7 @@ export interface ReservedAccountWebhookData {
   transactionReference: string;
   paymentReference: string;
   amountPaid: number;
-  totalAmountPaid: number;
+  totalPayable: number;
   settlementAmount: number;
   paidOn: string;
   paymentStatus: string;
@@ -22,6 +23,7 @@ export interface ReservedAccountWebhookData {
   bankCode: string;
   bankName: string;
   customer: { email: string; name: string };
+  destinationAccountInformation?: { bankCode: string; bankName: string; accountNumber: string };
 }
 
 export interface DisbursementWebhookData {

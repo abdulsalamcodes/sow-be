@@ -9,5 +9,6 @@ import { AuthModule } from '../auth/auth.module.js';
   imports: [TypeOrmModule.forFeature([Kyc]), AuthModule],
   controllers: [KycController],
   providers: [KycService],
+  exports: [KycService],
 })
 export class KycModule {}

@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Beneficiary } from '../entities/beneficiary.entity.js';
 import { BanksServiceContract, ResolvedAccount } from '../contracts/financial-services.js';
 import { MonnifyHttpClient } from '../monnify/monnify-http-client.js';
+import { MonnifyError } from '../monnify/monnify-error.js';
 import { AccountValidationResponse } from '../monnify/monnify.types.js';
 
 @Injectable()
@@ -46,7 +47,15 @@ export class BanksService implements BanksServiceContract {
     userId: string,
     data: { name: string; accountNumber: string; bankCode: string },
   ): Promise<Beneficiary> {
-    const resolved = await this.resolveAccountName(data.accountNumber, data.bankCode);
+    let resolved: ResolvedAccount;
+    try {
+      resolved = await this.resolveAccountName(data.accountNumber, data.bankCode);
+    } catch (error) {
+      if (error instanceof MonnifyError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
     return this.beneficiaryRepository.save(
       this.beneficiaryRepository.create({
         userId,
@@ -68,5 +77,12 @@ export class BanksService implements BanksServiceContract {
 
   async deleteBeneficiary(userId: string, beneficiaryId: string): Promise<void> {
     await this.beneficiaryRepository.delete({ id: beneficiaryId, userId });
+  }
+
+  async listBanks(): Promise<Array<{ bankCode: string; bankName: string }>> {
+    const response = await this.monnify.get<{ list: Array<{ bankCode: string; bankName: string }> }>(
+      '/api/v1/banks',
+    );
+    return response.list;
   }
 }

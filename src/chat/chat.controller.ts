@@ -1,5 +1,4 @@
-import { Controller, Post, Get, Body, Param, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { ChatService } from './chat.service.js';
@@ -14,9 +13,8 @@ export class ChatController {
   async sendMessage(
     @CurrentUser('id') userId: string,
     @Body() dto: SendMessageDto,
-    @Res() response: Response,
-  ): Promise<void> {
-    await this.chatService.streamReply(userId, dto, response);
+  ): Promise<{ text: string }> {
+    return this.chatService.reply(userId, dto);
   }
 
   @Get('conversations')
