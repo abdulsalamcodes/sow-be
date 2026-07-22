@@ -12,17 +12,18 @@ const buildTransaction = (
 ): LedgerTransaction => ({
   id: overrides.id ?? 'txn',
   narration: overrides.narration ?? null,
-  counterparty: overrides.counterparty ?? null,
+  feeKobo: overrides.feeKobo ?? '0',
   status: overrides.status ?? 'SUCCESS',
   createdAt: overrides.createdAt ?? new Date(),
   amountKobo: overrides.amountKobo,
+  monnifyReference: overrides.monnifyReference ?? null,
   type: overrides.type,
   category: overrides.category,
 });
 
 const buildService = (
   transactions: LedgerTransaction[],
-  balanceKobo = 0,
+  balanceKobo = '0',
 ): AnalyticsService => {
   const walletService: WalletServiceContract = {
     getWallet: () =>
@@ -45,9 +46,9 @@ describe('AnalyticsService', () => {
   describe('getSpendingSummary', () => {
     it('sums debits and credits and finds the largest expense', async () => {
       const service = buildService([
-        buildTransaction({ amountKobo: 300_000, type: 'DEBIT', category: 'TRANSFER', narration: 'Rent' }),
-        buildTransaction({ amountKobo: 200_000, type: 'DEBIT', category: 'BILL_PAYMENT' }),
-        buildTransaction({ amountKobo: 500_000, type: 'CREDIT', category: 'FUNDING' }),
+        buildTransaction({ amountKobo: '300000', type: 'DEBIT', category: 'TRANSFER', narration: 'Rent' }),
+        buildTransaction({ amountKobo: '200000', type: 'DEBIT', category: 'BILL_PAYMENT' }),
+        buildTransaction({ amountKobo: '500000', type: 'CREDIT', category: 'FUNDING' }),
       ]);
 
       const summary = await service.getSpendingSummary(userId, 'week');
@@ -60,7 +61,7 @@ describe('AnalyticsService', () => {
 
     it('returns a null largest expense when nothing was spent', async () => {
       const service = buildService([
-        buildTransaction({ amountKobo: 500_000, type: 'CREDIT', category: 'FUNDING' }),
+        buildTransaction({ amountKobo: '500000', type: 'CREDIT', category: 'FUNDING' }),
       ]);
 
       const summary = await service.getSpendingSummary(userId, 'month');
@@ -71,8 +72,8 @@ describe('AnalyticsService', () => {
 
     it('ignores non-successful transactions', async () => {
       const service = buildService([
-        buildTransaction({ amountKobo: 100_000, type: 'DEBIT', category: 'TRANSFER', status: 'FAILED' }),
-        buildTransaction({ amountKobo: 200_000, type: 'DEBIT', category: 'TRANSFER', status: 'SUCCESS' }),
+        buildTransaction({ amountKobo: '100000', type: 'DEBIT', category: 'TRANSFER', status: 'FAILED' }),
+        buildTransaction({ amountKobo: '200000', type: 'DEBIT', category: 'TRANSFER', status: 'SUCCESS' }),
       ]);
 
       const summary = await service.getSpendingSummary(userId, 'week');
@@ -85,8 +86,8 @@ describe('AnalyticsService', () => {
   describe('getSpendingByCategory', () => {
     it('groups debits by category with percentages that sum to 100', async () => {
       const service = buildService([
-        buildTransaction({ amountKobo: 600_000, type: 'DEBIT', category: 'TRANSFER' }),
-        buildTransaction({ amountKobo: 400_000, type: 'DEBIT', category: 'BILL_PAYMENT' }),
+        buildTransaction({ amountKobo: '600000', type: 'DEBIT', category: 'TRANSFER' }),
+        buildTransaction({ amountKobo: '400000', type: 'DEBIT', category: 'BILL_PAYMENT' }),
       ]);
 
       const breakdown = await service.getSpendingByCategory(userId, 'month');
@@ -101,11 +102,11 @@ describe('AnalyticsService', () => {
   describe('checkAffordability', () => {
     // Four weeks of debits totalling 400,000 kobo => average weekly spend 100,000.
     const fourWeekDebits = [
-      buildTransaction({ amountKobo: 400_000, type: 'DEBIT', category: 'TRANSFER' }),
+      buildTransaction({ amountKobo: '400000', type: 'DEBIT', category: 'TRANSFER' }),
     ];
 
     it('is affordable when the remaining balance exactly covers one average week', async () => {
-      const service = buildService(fourWeekDebits, 1_000_000);
+      const service = buildService(fourWeekDebits, '1000000');
 
       const result = await service.checkAffordability(userId, 900_000);
 
@@ -115,7 +116,7 @@ describe('AnalyticsService', () => {
     });
 
     it('is not affordable when short by one kobo', async () => {
-      const service = buildService(fourWeekDebits, 1_000_000);
+      const service = buildService(fourWeekDebits, '1000000');
 
       const result = await service.checkAffordability(userId, 900_001);
 
@@ -128,8 +129,8 @@ describe('AnalyticsService', () => {
     it('buckets debits into weekly windows oldest-first', async () => {
       const now = Date.now();
       const service = buildService([
-        buildTransaction({ amountKobo: 100_000, type: 'DEBIT', category: 'TRANSFER', createdAt: new Date(now - 2 * DAY_MS) }),
-        buildTransaction({ amountKobo: 250_000, type: 'DEBIT', category: 'TRANSFER', createdAt: new Date(now - 9 * DAY_MS) }),
+        buildTransaction({ amountKobo: '100000', type: 'DEBIT', category: 'TRANSFER', createdAt: new Date(now - 2 * DAY_MS) }),
+        buildTransaction({ amountKobo: '250000', type: 'DEBIT', category: 'TRANSFER', createdAt: new Date(now - 9 * DAY_MS) }),
       ]);
 
       const trend = await service.getSpendingTrend(userId, 4);

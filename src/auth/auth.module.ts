@@ -40,6 +40,6 @@ import { MailModule } from '../mail/mail.module.js';
     LocalStrategy,
     EmailVerifiedGuard,
   ],
-  exports: [AuthService, EmailVerifiedGuard],
+  exports: [AuthService, EmailVerifiedGuard, UsersModule],
 })
 export class AuthModule {}

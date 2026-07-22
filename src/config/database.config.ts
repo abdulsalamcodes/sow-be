@@ -12,4 +12,8 @@ export const getDatabaseConfig = (
   database: configService.get<string>('DATABASE_NAME'),
   autoLoadEntities: true,
   synchronize: true,
+  extra: {
+    max: 2,
+    idleTimeoutMillis: 30000,
+  },
 });

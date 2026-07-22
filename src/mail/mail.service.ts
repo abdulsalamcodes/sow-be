@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-const PLUNK_SEND_URL = 'https://api.useplunk.com/v1/send';
+const PLUNK_SEND_URL = 'https://next-api.useplunk.com/v1/send';
 const REQUEST_TIMEOUT_MS = 5000;
 const OTP_SUBJECT = 'Your Sow verification code';
 
@@ -13,9 +13,12 @@ const OTP_SUBJECT = 'Your Sow verification code';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly apiKey: string;
+  private readonly fromEmail: string;
 
   constructor(configService: ConfigService) {
     this.apiKey = configService.getOrThrow<string>('PLUNK_API_KEY');
+    this.fromEmail =
+      configService.get<string>('PLUNK_FROM_EMAIL') ?? 'hello@sow.chat';
   }
 
   async sendOtpEmail(recipientEmail: string, code: string): Promise<void> {
@@ -38,7 +41,7 @@ export class MailService {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ to, subject, body }),
+        body: JSON.stringify({ to, subject, body, from: this.fromEmail }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {

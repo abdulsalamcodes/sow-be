@@ -72,11 +72,12 @@ export class AnalyticsService {
       this.walletService.getWallet(userId),
       this.averageWeeklySpend(userId),
     ]);
-    const projectedRemainingKobo = wallet.balanceKobo - amountKobo;
+    const balanceNumber = this.koboAsNumber(wallet.balanceKobo);
+    const projectedRemainingKobo = balanceNumber - amountKobo;
     const affordable = projectedRemainingKobo >= averageWeeklySpendKobo;
     return {
       affordable,
-      balanceKobo: wallet.balanceKobo,
+      balanceKobo: balanceNumber,
       projectedRemainingKobo,
       averageWeeklySpendKobo,
       note: 'Affordable when the balance left after this purchase still covers one average week of spending.',
@@ -124,8 +125,12 @@ export class AnalyticsService {
     return transactions.filter((transaction) => transaction.type === 'CREDIT');
   }
 
+  private koboAsNumber(amount: string): number {
+    return Number(amount);
+  }
+
   private sum(transactions: LedgerTransaction[]): number {
-    return transactions.reduce((total, transaction) => total + transaction.amountKobo, 0);
+    return transactions.reduce((total, transaction) => total + this.koboAsNumber(transaction.amountKobo), 0);
   }
 
   private largestExpense(
@@ -135,10 +140,10 @@ export class AnalyticsService {
       return null;
     }
     const largest = debits.reduce((max, transaction) =>
-      transaction.amountKobo > max.amountKobo ? transaction : max,
+      this.koboAsNumber(transaction.amountKobo) > this.koboAsNumber(max.amountKobo) ? transaction : max,
     );
     return {
-      amountKobo: largest.amountKobo,
+      amountKobo: this.koboAsNumber(largest.amountKobo),
       narration: largest.narration ?? largest.category,
     };
   }
@@ -151,7 +156,7 @@ export class AnalyticsService {
     for (const debit of debits) {
       totalsByCategory.set(
         debit.category,
-        (totalsByCategory.get(debit.category) ?? 0) + debit.amountKobo,
+        (totalsByCategory.get(debit.category) ?? 0) + this.koboAsNumber(debit.amountKobo),
       );
     }
     return [...totalsByCategory.entries()]

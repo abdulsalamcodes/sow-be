@@ -57,4 +57,12 @@ export class BanksServiceStub implements BanksServiceContract {
     );
     return Promise.resolve(match ?? null);
   }
+
+  listBanks(): Promise<Array<{ bankCode: string; bankName: string }>> {
+    return Promise.resolve([
+      { bankCode: '035', bankName: 'Wema Bank' },
+      { bankCode: '057', bankName: 'Zenith Bank' },
+      { bankCode: '058', bankName: 'GTBank' },
+    ]);
+  }
 }

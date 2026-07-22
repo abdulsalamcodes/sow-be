@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
+import { UsersService } from '../users/users.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { VerifyEmailDto } from './dto/verify-email.dto.js';
@@ -27,6 +28,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly usersService: UsersService,
   ) {}
 
   @Post('register')
@@ -62,8 +64,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@CurrentUser() user: User) {
-    return user;
+  async getProfile(@CurrentUser('id') userId: string) {
+    return this.usersService.findById(userId);
   }
 
   @UseGuards(JwtAuthGuard)

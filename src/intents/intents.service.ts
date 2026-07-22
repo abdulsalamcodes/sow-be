@@ -67,6 +67,7 @@ export class IntentsService {
         idempotencyKey: randomUUID(),
         expiresAt: this.buildExpiry(),
         failureReason: null,
+        conversationId: input.conversationId ?? null,
       }),
     );
 
@@ -113,6 +114,7 @@ export class IntentsService {
       amountKobo: Number(intent.amountKobo),
       destinationAccountNumber: intent.payload.destinationAccountNumber,
       destinationBankCode: intent.payload.destinationBankCode,
+      destinationAccountName: intent.payload.accountName,
       narration: intent.payload.narration,
       idempotencyKey: intent.idempotencyKey,
     });
@@ -124,15 +126,76 @@ export class IntentsService {
       return { status: 'FAILED', failureReason: intent.failureReason };
     }
 
+    if (result.otpRequired && result.otpReference) {
+      intent.status = IntentStatus.AWAITING_OTP;
+      intent.otpReference = result.otpReference;
+      await this.intentRepository.save(intent);
+      return {
+        status: 'PENDING_OTP',
+        otpReference: result.otpReference,
+      };
+    }
+
     intent.status = IntentStatus.EXECUTED;
     await this.intentRepository.save(intent);
     return { status: 'EXECUTED', reference: result.reference };
+  }
+
+  async submitOtp(
+    userId: string,
+    intentId: string,
+    otp: string,
+  ): Promise<IntentExecutionResult> {
+    const intent = await this.loadOwnedIntent(userId, intentId);
+    if (intent.status !== IntentStatus.AWAITING_OTP) {
+      throw new ConflictException('This request is not waiting for an OTP');
+    }
+
+    if (this.isExpired(intent.expiresAt)) {
+      intent.status = IntentStatus.EXPIRED;
+      await this.intentRepository.save(intent);
+      throw new ConflictException('This request expired — ask Sow again');
+    }
+
+    if (!intent.otpReference) {
+      throw new ConflictException('No OTP reference found for this request');
+    }
+
+    const result = await this.paymentsService.validateOtp(
+      intent.otpReference,
+      otp,
+    );
+
+    if (result.status === 'FAILED') {
+      intent.status = IntentStatus.FAILED;
+      intent.failureReason = result.failureReason ?? 'OTP validation failed';
+      await this.intentRepository.save(intent);
+      return { status: 'FAILED', failureReason: intent.failureReason };
+    }
+
+    intent.status = IntentStatus.EXECUTED;
+    await this.intentRepository.save(intent);
+    return { status: 'EXECUTED', reference: result.reference };
+  }
+
+  async attachConversation(
+    intentId: string,
+    conversationId: string,
+  ): Promise<void> {
+    await this.intentRepository.update(intentId, { conversationId });
   }
 
   private async resolveRecipient(
     userId: string,
     input: CreateTransferIntentInput,
   ): Promise<ResolvedAccount> {
+    if (input.accountNumber && input.bankCode) {
+      return this.banksService.resolveAccountName(
+        input.accountNumber,
+        input.bankCode,
+      );
+    }
+
     if (input.recipientName) {
       const beneficiary = await this.banksService.findBeneficiaryByName(
         userId,
@@ -144,13 +207,6 @@ export class IntentsService {
         );
       }
       return beneficiary;
-    }
-
-    if (input.accountNumber && input.bankCode) {
-      return this.banksService.resolveAccountName(
-        input.accountNumber,
-        input.bankCode,
-      );
     }
 
     throw new BadRequestException(
@@ -198,6 +254,34 @@ export class IntentsService {
 
   private buildExpiry(): Date {
     return new Date(Date.now() + INTENT_TTL_MINUTES * 60 * 1000);
+  }
+
+  async findPendingIntent(
+    userId: string,
+  ): Promise<{
+    intentId: string;
+    summary: string;
+    amountKobo: number;
+    recipientAccountName: string;
+    expiresAt: Date;
+  } | null> {
+    const intent = await this.intentRepository.findOne({
+      where: { userId, status: IntentStatus.PENDING },
+      order: { createdAt: 'DESC' },
+    });
+    if (!intent) return null;
+    if (intent.expiresAt.getTime() <= Date.now()) {
+      intent.status = IntentStatus.EXPIRED;
+      await this.intentRepository.save(intent);
+      return null;
+    }
+    return {
+      intentId: intent.id,
+      summary: intent.summary,
+      amountKobo: Number(intent.amountKobo),
+      recipientAccountName: intent.payload.accountName,
+      expiresAt: intent.expiresAt,
+    };
   }
 
   private isExpired(expiresAt: Date): boolean {
