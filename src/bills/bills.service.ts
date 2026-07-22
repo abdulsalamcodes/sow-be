@@ -214,7 +214,7 @@ export class BillsService implements BillsServiceContract {
         } catch (error) {
           this.logger.warn(
             'Requery failed for pending bill payment',
-            error as Error,
+            error instanceof Error ? error : new Error(String(error)),
           );
         }
       }

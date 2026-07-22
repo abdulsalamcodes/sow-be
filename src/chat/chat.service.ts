@@ -166,7 +166,11 @@ export class ChatService {
         beneficiaryName?: string;
       };
       const text = await this.runAgent(userId, conversation, sendMoneyContext);
-      await this.ensureTransferIntent(userId, conversation.id, sendMoneyContext);
+      await this.ensureTransferIntent(
+        userId,
+        conversation.id,
+        sendMoneyContext,
+      );
       return text;
     }
 
@@ -366,9 +370,12 @@ export class ChatService {
         const naira = payBillContext.amountKobo / 100;
         parts.push(`Amount: ₦${naira.toLocaleString('en-NG')}`);
       }
-      if (payBillContext.billType) parts.push(`Type: ${payBillContext.billType}`);
-      if (payBillContext.customerId) parts.push(`Customer: ${payBillContext.customerId}`);
-      if (payBillContext.provider) parts.push(`Provider: ${payBillContext.provider}`);
+      if (payBillContext.billType)
+        parts.push(`Type: ${payBillContext.billType}`);
+      if (payBillContext.customerId)
+        parts.push(`Customer: ${payBillContext.customerId}`);
+      if (payBillContext.provider)
+        parts.push(`Provider: ${payBillContext.provider}`);
       systemParts.push('', 'Parsed bill payment details:', parts.join(', '));
     }
 
@@ -399,12 +406,12 @@ export class ChatService {
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
       const response = await this.lmlClient.chat(lmlMessages, lmlTools);
 
-    this.logger.log({
-      event: 'agent_iteration',
-      iteration,
-      toolCalls: response.toolCalls.map((tc) => tc.name),
-      responseContent: response.content?.slice(0, 120),
-    });
+      this.logger.log({
+        event: 'agent_iteration',
+        iteration,
+        toolCalls: response.toolCalls.map((tc) => tc.name),
+        responseContent: response.content?.slice(0, 120),
+      });
 
       if (response.toolCalls.length === 0) {
         return response.content;
@@ -454,8 +461,11 @@ export class ChatService {
 
     let input: Record<string, unknown>;
     try {
-      const parsed = JSON.parse(toolCall.arguments);
-      input = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>;
+      const parsed: unknown = JSON.parse(toolCall.arguments);
+      input = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<
+        string,
+        unknown
+      >;
     } catch {
       input = {};
     }
