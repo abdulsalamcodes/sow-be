@@ -4,7 +4,12 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { Wallet } from '../entities/wallet.entity.js';
-import { Transaction, TransactionStatus, TransactionType, TransactionCategory } from '../entities/transaction.entity.js';
+import {
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+  TransactionCategory,
+} from '../entities/transaction.entity.js';
 import { Bill, BillStatus, BillType } from '../entities/bill.entity.js';
 import {
   BillsServiceContract,
@@ -47,9 +52,9 @@ export class BillsService implements BillsServiceContract {
   }
 
   async listCategories(): Promise<BillerCategory[]> {
-    const responseBody = await this.monnify.get<PaginatedContent<MonnifyCategory>>(
-      '/api/v1/vas/bills-payment/biller-categories',
-    );
+    const responseBody = await this.monnify.get<
+      PaginatedContent<MonnifyCategory>
+    >('/api/v1/vas/bills-payment/biller-categories');
     return this.extractArray(responseBody).map((item) => ({
       categoryCode: item.code,
       categoryName: item.name,
@@ -61,27 +66,26 @@ export class BillsService implements BillsServiceContract {
     if (categoryCode) {
       query.categoryCode = categoryCode;
     }
-    const responseBody = await this.monnify.get<PaginatedContent<MonnifyBiller>>(
-      '/api/v1/vas/bills-payment/billers',
-      query,
-    );
-    return this.extractArray(responseBody).map((item) => ({
-      billerCode: item.billerCode,
-      billerName: item.billerName,
-      categoryCode: item.categoryCode,
+    const responseBody = await this.monnify.get<
+      PaginatedContent<MonnifyBiller>
+    >('/api/v1/vas/bills-payment/billers', query);
+    const items = this.extractArray(responseBody);
+    return items.map((item) => ({
+      billerCode: item.code,
+      billerName: item.name,
+      categoryCode: item.categories?.[0]?.code ?? '',
     }));
   }
 
   async getBillerProducts(billerCode: string): Promise<BillerProduct[]> {
-    const responseBody = await this.monnify.get<PaginatedContent<MonnifyProduct>>(
-      '/api/v1/vas/bills-payment/biller-products',
-      { billerCode },
-    );
+    const responseBody = await this.monnify.get<
+      PaginatedContent<MonnifyProduct>
+    >('/api/v1/vas/bills-payment/biller-products', { billerCode });
     return this.extractArray(responseBody).map((item) => ({
-      productCode: item.productCode,
-      productName: item.productName,
-      amount: item.amount,
-      fixedPrice: item.fixedPrice,
+      productCode: item.code,
+      productName: item.name,
+      amount: item.price,
+      fixedPrice: item.priceType === 'FIXED',
     }));
   }
 
@@ -104,18 +108,34 @@ export class BillsService implements BillsServiceContract {
     }
   }
 
-  async executeBillPayment(request: BillPaymentRequest): Promise<BillPaymentResult> {
-    const wallet = await this.walletRepository.findOne({ where: { userId: request.userId } });
+  async executeBillPayment(
+    request: BillPaymentRequest,
+  ): Promise<BillPaymentResult> {
+    const wallet = await this.walletRepository.findOne({
+      where: { userId: request.userId },
+    });
     if (!wallet) {
-      return { reference: '', status: 'FAILED', failureReason: 'Wallet not found' };
+      return {
+        reference: '',
+        status: 'FAILED',
+        failureReason: 'Wallet not found',
+      };
     }
 
     const monnifyBalance = await this.monnify.get<WalletBalanceResponse>(
       '/api/v2/disbursements/wallet-balance',
-      { accountNumber: this.configService.getOrThrow<string>('MONNIFY_WALLET_ACCOUNT_NUMBER') },
+      {
+        accountNumber: this.configService.getOrThrow<string>(
+          'MONNIFY_WALLET_ACCOUNT_NUMBER',
+        ),
+      },
     );
     if (monnifyBalance.amount < request.amountKobo) {
-      return { reference: '', status: 'FAILED', failureReason: 'Insufficient balance' };
+      return {
+        reference: '',
+        status: 'FAILED',
+        failureReason: 'Insufficient balance',
+      };
     }
 
     const debitResult = await this.walletRepository.update(
@@ -123,7 +143,11 @@ export class BillsService implements BillsServiceContract {
       { balance: () => `balance - ${request.amountKobo}` },
     );
     if (debitResult.affected === 0) {
-      return { reference: '', status: 'FAILED', failureReason: 'Insufficient balance' };
+      return {
+        reference: '',
+        status: 'FAILED',
+        failureReason: 'Insufficient balance',
+      };
     }
 
     try {
@@ -138,10 +162,20 @@ export class BillsService implements BillsServiceContract {
         },
       );
 
-      const isSuccess = responseBody.status === 'SUCCESS' || responseBody.status === 'success';
-      const isPending = responseBody.status === 'PENDING' || responseBody.status === 'pending';
-      const transactionStatus = isSuccess ? TransactionStatus.SUCCESS : isPending ? TransactionStatus.PENDING : TransactionStatus.FAILED;
-      const billStatus = isSuccess ? BillStatus.SUCCESS : isPending ? BillStatus.PENDING : BillStatus.FAILED;
+      const isSuccess =
+        responseBody.status === 'SUCCESS' || responseBody.status === 'success';
+      const isPending =
+        responseBody.status === 'PENDING' || responseBody.status === 'pending';
+      const transactionStatus = isSuccess
+        ? TransactionStatus.SUCCESS
+        : isPending
+          ? TransactionStatus.PENDING
+          : TransactionStatus.FAILED;
+      const billStatus = isSuccess
+        ? BillStatus.SUCCESS
+        : isPending
+          ? BillStatus.PENDING
+          : BillStatus.FAILED;
 
       const transaction = await this.transactionRepository.save(
         this.transactionRepository.create({
@@ -171,12 +205,17 @@ export class BillsService implements BillsServiceContract {
 
       if (isPending && responseBody.reference) {
         try {
-          const requeryResult = await this.requeryBillPayment(responseBody.reference);
+          const requeryResult = await this.requeryBillPayment(
+            responseBody.reference,
+          );
           if (requeryResult.status !== 'PENDING') {
             return requeryResult;
           }
         } catch (error) {
-          this.logger.warn('Requery failed for pending bill payment', error as Error);
+          this.logger.warn(
+            'Requery failed for pending bill payment',
+            error as Error,
+          );
         }
       }
 
@@ -190,7 +229,8 @@ export class BillsService implements BillsServiceContract {
         { id: wallet.id },
         { balance: () => `balance + ${request.amountKobo}` },
       );
-      const message = error instanceof MonnifyError ? error.message : 'Bill payment failed';
+      const message =
+        error instanceof MonnifyError ? error.message : 'Bill payment failed';
       return { reference: '', status: 'FAILED', failureReason: message };
     }
   }
@@ -202,11 +242,12 @@ export class BillsService implements BillsServiceContract {
         { reference },
       );
 
-      const status = responseBody.status === 'SUCCESS' || responseBody.status === 'success'
-        ? 'SUCCESS'
-        : responseBody.status === 'FAILED' || responseBody.status === 'failed'
-          ? 'FAILED'
-          : 'PENDING';
+      const status =
+        responseBody.status === 'SUCCESS' || responseBody.status === 'success'
+          ? 'SUCCESS'
+          : responseBody.status === 'FAILED' || responseBody.status === 'failed'
+            ? 'FAILED'
+            : 'PENDING';
 
       return {
         reference: responseBody.reference ?? reference,
@@ -214,7 +255,8 @@ export class BillsService implements BillsServiceContract {
         transactionReference: responseBody.transactionReference,
       };
     } catch (error) {
-      const message = error instanceof MonnifyError ? error.message : 'Requery failed';
+      const message =
+        error instanceof MonnifyError ? error.message : 'Requery failed';
       return { reference, status: 'FAILED', failureReason: message };
     }
   }

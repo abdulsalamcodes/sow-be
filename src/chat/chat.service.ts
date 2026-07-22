@@ -454,7 +454,8 @@ export class ChatService {
 
     let input: Record<string, unknown>;
     try {
-      input = JSON.parse(toolCall.arguments) as Record<string, unknown>;
+      const parsed = JSON.parse(toolCall.arguments);
+      input = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>;
     } catch {
       input = {};
     }
@@ -512,15 +513,20 @@ export class ChatService {
     return this.toolDefinitions.find((tool) => tool.name === name);
   }
 
+  private lmlToolDefinitions: LmlToolDefinition[] | null = null;
+
   private buildLmlToolDefinitions(): LmlToolDefinition[] {
-    return this.toolDefinitions.map((tool) => ({
-      type: 'function' as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: toJsonSchema(tool.inputSchema),
-      },
-    }));
+    if (!this.lmlToolDefinitions) {
+      this.lmlToolDefinitions = this.toolDefinitions.map((tool) => ({
+        type: 'function' as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: toJsonSchema(tool.inputSchema),
+        },
+      }));
+    }
+    return this.lmlToolDefinitions;
   }
 
   private async loadOrCreateConversation(

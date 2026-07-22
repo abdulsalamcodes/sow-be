@@ -55,16 +55,18 @@ export interface MonnifyCategory {
 }
 
 export interface MonnifyBiller {
-  billerCode: string;
-  billerName: string;
-  categoryCode: string;
+  code: string;
+  name: string;
+  categories?: Array<{ code: string; name: string }>;
 }
 
 export interface MonnifyProduct {
-  productCode: string;
-  productName: string;
-  amount: number;
-  fixedPrice: boolean;
+  code: string;
+  name: string;
+  price: number;
+  priceType: string;
+  minAmount?: number | null;
+  maxAmount?: number | null;
 }
 
 export interface CustomerValidationResponse {

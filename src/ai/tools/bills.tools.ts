@@ -7,7 +7,8 @@ export const buildBillsTools = (
 ): ToolDefinition[] => [
   {
     name: 'list-biller-categories',
-    description: 'List available bill payment categories (e.g. electricity, airtime, cable TV, internet).',
+    description:
+      'List available bill payment categories (e.g. electricity, airtime, cable TV, internet).',
     inputSchema: z.object({}),
     execute: async () => {
       const categories = await billsService.listCategories();
@@ -16,32 +17,47 @@ export const buildBillsTools = (
   },
   {
     name: 'list-billers',
-    description: 'List billers for a category. Must call list-biller-categories first to get category codes.',
+    description:
+      'List billers for a category. REQUIRED: pass the categoryCode from list-biller-categories to filter billers (e.g. "AIRTIME" for airtime).',
     inputSchema: z.object({
-      categoryCode: z.string().optional().describe('Category code to filter billers'),
+      categoryCode: z
+        .string()
+        .describe(
+          'Category code from list-biller-categories (e.g. AIRTIME, ELECTRICITY, DATA_BUNDLE, CABLE_TV)',
+        ),
     }),
     execute: async (_userId, { categoryCode }) => {
-      const billers = await billsService.listBillers(categoryCode as string | undefined);
+      const billers = await billsService.listBillers(
+        categoryCode as string | undefined,
+      );
       return { billers };
     },
   },
   {
     name: 'list-products',
-    description: 'List available products (plans/packages) for a biller. Must call list-biller-categories then list-billers first to get the billerCode.',
+    description:
+      'List available products (plans/packages) for a biller. REQUIRED: pass the billerCode from list-billers (e.g. "MTN" for MTN airtime). Must call list-biller-categories then list-billers first.',
     inputSchema: z.object({
       billerCode: z.string().describe('Biller code to get products for'),
     }),
     execute: async (_userId, { billerCode }) => {
-      const products = await billsService.getBillerProducts(billerCode as string);
+      const products = await billsService.getBillerProducts(
+        billerCode as string,
+      );
       return { products };
     },
   },
   {
     name: 'validate-customer',
-    description: 'Validate a customer ID/account number for a bill product. Call list-biller-categories, list-billers, then list-products BEFORE this. Use the productCode from list-products.',
+    description:
+      'Validate a customer ID for a bill product (e.g. phone number for airtime, meter number for electricity). REQUIRED: pass the productCode from list-products. Must call list-biller-categories, list-billers, list-products first.',
     inputSchema: z.object({
       productCode: z.string().describe('Product code from list-products'),
-      customerId: z.string().describe('Customer ID, meter number, phone number, or smart card number'),
+      customerId: z
+        .string()
+        .describe(
+          'Customer ID, meter number, phone number, or smart card number',
+        ),
     }),
     execute: async (_userId, { productCode, customerId }) => {
       const result = await billsService.validateCustomer(
@@ -63,9 +79,16 @@ export const buildBillsTools = (
       customerId: z.string(),
       amountKobo: z.coerce.number().int().positive(),
       reference: z.string().describe('Unique reference for this transaction'),
-      validationReference: z.string().optional().describe('From validate-customer response'),
+      validationReference: z
+        .string()
+        .optional()
+        .describe('From validate-customer response'),
       provider: z.string().describe('Biller name or provider label'),
-      billType: z.string().describe('Type of bill: AIRTIME, DATA, ELECTRICITY, CABLE, INTERNET, etc.'),
+      billType: z
+        .string()
+        .describe(
+          'Type of bill: AIRTIME, DATA, ELECTRICITY, CABLE, INTERNET, etc.',
+        ),
     }),
     execute: async (userId, input) => {
       const data = input as {
