@@ -15,7 +15,7 @@ export const buildTransferTools = (
       'Do NOT ask for a name when accountNumber and bankCode are already known — the account name is resolved automatically.',
     inputSchema: z
       .object({
-        amountKobo: z.number().int().positive(),
+        amountKobo: z.coerce.number().int().positive(),
         recipientName: z.string().optional(),
         accountNumber: z.string().length(10).optional(),
         bankCode: z.string().optional(),

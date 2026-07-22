@@ -9,6 +9,7 @@ export enum IntentType {
 export enum IntentStatus {
   PENDING = 'PENDING',
   CONFIRMED = 'CONFIRMED',
+  AWAITING_OTP = 'AWAITING_OTP',
   EXECUTED = 'EXECUTED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
@@ -65,4 +66,10 @@ export class TransactionIntent extends BaseEntity {
 
   @Column({ type: 'text', name: 'failure_reason', nullable: true })
   failureReason!: string | null;
+
+  @Column({ type: 'varchar', name: 'otp_reference', nullable: true })
+  otpReference!: string | null;
+
+  @Column({ type: 'uuid', name: 'conversation_id', nullable: true })
+  conversationId!: string | null;
 }

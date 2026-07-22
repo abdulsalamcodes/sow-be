@@ -13,4 +13,8 @@ export class PaymentsServiceStub implements PaymentsServiceContract {
       status: 'SUCCESS',
     });
   }
+
+  validateOtp(_otpReference: string, _otp: string): Promise<TransferResult> {
+    return Promise.resolve({ reference: '', status: 'SUCCESS' });
+  }
 }

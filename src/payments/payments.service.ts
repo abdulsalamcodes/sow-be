@@ -54,7 +54,7 @@ export class PaymentsService implements PaymentsServiceContract {
           narration: request.narration,
           destinationBankCode: request.destinationBankCode,
           destinationAccountNumber: request.destinationAccountNumber,
-          destinationAccountName: '',
+          destinationAccountName: request.destinationAccountName,
           sourceAccountNumber: this.configService.getOrThrow<string>('MONNIFY_WALLET_ACCOUNT_NUMBER'),
           currency: 'NGN',
         },

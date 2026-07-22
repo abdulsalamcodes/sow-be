@@ -3,6 +3,9 @@ import type { WalletServiceContract } from '../contracts/financial-services.js';
 export interface PendingAction {
   intentId: string;
   summary: string;
+  amountKobo: number;
+  recipientAccountName: string;
+  expiresAt: Date;
 }
 
 export interface UserState {

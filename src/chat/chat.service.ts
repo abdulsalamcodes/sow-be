@@ -10,16 +10,14 @@ import {
 } from '../ai/llm-client.js';
 import { SOW_AGENT } from '../ai/ai.constants.js';
 import { SOW_INSTRUCTIONS } from '../ai/agent.js';
-import {
-  type ToolDefinition,
-  toJsonSchema,
-} from '../ai/tools/index.js';
+import { type ToolDefinition, toJsonSchema } from '../ai/tools/index.js';
 import { IntentClassifier } from '../ai/intent-classifier.js';
-import {
-  StateInjector,
-  type PendingAction,
-} from '../ai/state-injector.js';
+import { StateInjector, type PendingAction } from '../ai/state-injector.js';
 import { IntentsService } from '../intents/intents.service.js';
+import {
+  BANKS_SERVICE,
+  type BanksServiceContract,
+} from '../contracts/financial-services.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 
 const TITLE_MAX_LENGTH = 60;
@@ -28,6 +26,7 @@ const MAX_TOOL_ITERATIONS = 10;
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
+  private currentConversationId: string | null = null;
 
   constructor(
     private readonly lmlClient: LmlClient,
@@ -40,9 +39,14 @@ export class ChatService {
     private readonly intentClassifier: IntentClassifier,
     private readonly stateInjector: StateInjector,
     private readonly intentsService: IntentsService,
+    @Inject(BANKS_SERVICE)
+    private readonly banksService: BanksServiceContract,
   ) {}
 
-  async reply(userId: string, dto: SendMessageDto): Promise<{ text: string }> {
+  async reply(
+    userId: string,
+    dto: SendMessageDto,
+  ): Promise<{ text: string; preview?: Record<string, unknown> }> {
     const startTime = Date.now();
 
     this.logger.log({
@@ -51,7 +55,12 @@ export class ChatService {
     });
 
     const conversation = await this.loadOrCreateConversation(userId, dto);
-    await this.saveMessage(conversation.id, MessageRole.USER, dto.message, null);
+    await this.saveMessage(
+      conversation.id,
+      MessageRole.USER,
+      dto.message,
+      null,
+    );
 
     const intent = await this.intentClassifier.classify(dto.message);
 
@@ -68,6 +77,8 @@ export class ChatService {
       intent,
     );
 
+    const pendingAction = await this.fetchPendingAction(userId);
+
     const duration = Date.now() - startTime;
     this.logger.log({
       event: 'chat_reply_end',
@@ -77,9 +88,28 @@ export class ChatService {
     });
 
     if (text) {
-      await this.saveMessage(conversation.id, MessageRole.ASSISTANT, text, null);
+      await this.saveMessage(
+        conversation.id,
+        MessageRole.ASSISTANT,
+        text,
+        null,
+      );
     }
-    return { text: text || 'Sorry, I could not complete that request.' };
+
+    const preview = pendingAction
+      ? {
+          intentId: pendingAction.intentId,
+          summary: pendingAction.summary,
+          amountKobo: pendingAction.amountKobo,
+          recipientAccountName: pendingAction.recipientAccountName,
+          expiresAt: pendingAction.expiresAt.toISOString(),
+        }
+      : undefined;
+
+    return {
+      text: text || 'Sorry, I could not complete that request.',
+      preview,
+    };
   }
 
   async listConversations(userId: string): Promise<Conversation[]> {
@@ -110,6 +140,9 @@ export class ChatService {
       accountNumber?: string;
       bankName?: string;
       beneficiaryName?: string;
+      billType?: string;
+      customerId?: string;
+      provider?: string;
     },
   ): Promise<string> {
     if (intent.type === 'check_balance') {
@@ -132,15 +165,25 @@ export class ChatService {
         bankName?: string;
         beneficiaryName?: string;
       };
-      return this.runAgent(userId, conversation, sendMoneyContext);
+      const text = await this.runAgent(userId, conversation, sendMoneyContext);
+      await this.ensureTransferIntent(userId, conversation.id, sendMoneyContext);
+      return text;
+    }
+
+    if (intent.type === 'pay_bill') {
+      const payBillContext = {
+        amountKobo: intent.amountKobo,
+        billType: intent.billType,
+        customerId: intent.customerId,
+        provider: intent.provider,
+      };
+      return this.runAgent(userId, conversation, undefined, payBillContext);
     }
 
     return this.runAgent(userId, conversation);
   }
 
-  private async buildBalanceResponse(
-    userId: string,
-  ): Promise<string> {
+  private async buildBalanceResponse(userId: string): Promise<string> {
     try {
       const state = await this.stateInjector.gather(userId);
       if (state.walletBalanceKobo) {
@@ -156,14 +199,12 @@ export class ChatService {
     }
   }
 
-  private buildSendMoneyContext(
-    intent: {
-      amountKobo?: number;
-      accountNumber?: string;
-      bankName?: string;
-      beneficiaryName?: string;
-    },
-  ): string {
+  private buildSendMoneyContext(intent: {
+    amountKobo?: number;
+    accountNumber?: string;
+    bankName?: string;
+    beneficiaryName?: string;
+  }): string {
     const parts: string[] = [];
     if (intent.amountKobo) {
       const naira = intent.amountKobo / 100;
@@ -220,6 +261,58 @@ export class ChatService {
     }
   }
 
+  private async ensureTransferIntent(
+    userId: string,
+    conversationId: string,
+    context: {
+      amountKobo?: number;
+      accountNumber?: string;
+      bankName?: string;
+      beneficiaryName?: string;
+    },
+  ): Promise<void> {
+    const existing = await this.fetchPendingAction(userId);
+    if (existing) return;
+
+    if (context.beneficiaryName) {
+      try {
+        await this.intentsService.createTransferIntent(userId, {
+          amountKobo: context.amountKobo!,
+          recipientName: context.beneficiaryName,
+          narration: 'Sow transfer',
+          conversationId,
+        });
+      } catch {
+        /* agent already handled the error */
+      }
+      return;
+    }
+
+    if (!context.amountKobo || !context.accountNumber || !context.bankName) {
+      return;
+    }
+
+    try {
+      const allBanks = (await this.banksService.listBanks()) ?? [];
+      const q = context.bankName.toLowerCase();
+      const match =
+        allBanks.find(
+          (b) => b.bankName.toLowerCase().includes(q) || b.bankCode.includes(q),
+        ) ?? allBanks.find((b) => q.includes(b.bankName.toLowerCase()));
+      if (!match) return;
+
+      await this.intentsService.createTransferIntent(userId, {
+        amountKobo: context.amountKobo,
+        accountNumber: context.accountNumber,
+        bankCode: match.bankCode,
+        narration: 'Sow transfer',
+        conversationId,
+      });
+    } catch {
+      /* agent already handled the error or LLM already responded */
+    }
+  }
+
   private async fetchPendingAction(
     userId: string,
   ): Promise<PendingAction | null> {
@@ -239,6 +332,12 @@ export class ChatService {
       bankName?: string;
       beneficiaryName?: string;
     },
+    payBillContext?: {
+      amountKobo?: number;
+      billType?: string;
+      customerId?: string;
+      provider?: string;
+    },
   ): Promise<string> {
     const dbMessages = await this.messageRepository.find({
       where: { conversationId: conversation.id },
@@ -249,11 +348,28 @@ export class ChatService {
     const pendingAction = await this.fetchPendingAction(userId);
     const stateText = this.stateInjector.format(state, pendingAction);
 
-    const systemParts = [SOW_INSTRUCTIONS, '', 'Current user state:', stateText];
+    const systemParts = [
+      SOW_INSTRUCTIONS,
+      '',
+      'Current user state:',
+      stateText,
+    ];
 
     if (sendMoneyContext) {
       const contextLine = this.buildSendMoneyContext(sendMoneyContext);
       systemParts.push('', 'Parsed transfer details:', contextLine);
+    }
+
+    if (payBillContext) {
+      const parts: string[] = [];
+      if (payBillContext.amountKobo) {
+        const naira = payBillContext.amountKobo / 100;
+        parts.push(`Amount: ₦${naira.toLocaleString('en-NG')}`);
+      }
+      if (payBillContext.billType) parts.push(`Type: ${payBillContext.billType}`);
+      if (payBillContext.customerId) parts.push(`Customer: ${payBillContext.customerId}`);
+      if (payBillContext.provider) parts.push(`Provider: ${payBillContext.provider}`);
+      systemParts.push('', 'Parsed bill payment details:', parts.join(', '));
     }
 
     const lmlMessages: LmlMessage[] = [
@@ -270,18 +386,25 @@ export class ChatService {
           };
         }
         return {
-          role: (message.role === MessageRole.USER
-            ? 'user'
-            : 'assistant') as 'user' | 'assistant',
+          role: (message.role === MessageRole.USER ? 'user' : 'assistant') as
+            'user' | 'assistant',
           content: message.content,
         };
       }),
     ];
 
+    this.currentConversationId = conversation.id;
     const lmlTools = this.buildLmlToolDefinitions();
 
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
       const response = await this.lmlClient.chat(lmlMessages, lmlTools);
+
+    this.logger.log({
+      event: 'agent_iteration',
+      iteration,
+      toolCalls: response.toolCalls.map((tc) => tc.name),
+      responseContent: response.content?.slice(0, 120),
+    });
 
       if (response.toolCalls.length === 0) {
         return response.content;
@@ -301,10 +424,12 @@ export class ChatService {
       });
 
       for (const toolCall of response.toolCalls) {
-        const resultMessage = await this.executeToolCall(
-          userId,
-          toolCall,
-        );
+        const resultMessage = await this.executeToolCall(userId, toolCall);
+        this.logger.log({
+          event: 'agent_tool_result',
+          tool: toolCall.name,
+          resultPreview: resultMessage.content?.slice(0, 200),
+        });
         lmlMessages.push(resultMessage);
       }
     }
@@ -350,6 +475,18 @@ export class ChatService {
         userId,
         parseResult.data as Record<string, unknown>,
       );
+      if (
+        toolCall.name === 'create-transfer-intent' &&
+        this.currentConversationId
+      ) {
+        const intentId = (result as Record<string, unknown>)?.intentId;
+        if (typeof intentId === 'string') {
+          await this.intentsService.attachConversation(
+            intentId,
+            this.currentConversationId,
+          );
+        }
+      }
       return {
         role: 'tool',
         tool_call_id: toolCall.id,
@@ -365,9 +502,7 @@ export class ChatService {
         tool_call_id: toolCall.id,
         content: JSON.stringify({
           error:
-            error instanceof Error
-              ? error.message
-              : 'Tool execution failed',
+            error instanceof Error ? error.message : 'Tool execution failed',
         }),
       };
     }

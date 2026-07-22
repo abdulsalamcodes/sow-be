@@ -4,6 +4,7 @@ export interface CreateTransferIntentInput {
   accountNumber?: string;
   bankCode?: string;
   narration?: string;
+  conversationId?: string;
 }
 
 export interface TransferIntentView {
@@ -15,7 +16,8 @@ export interface TransferIntentView {
 }
 
 export interface IntentExecutionResult {
-  status: 'EXECUTED' | 'FAILED';
+  status: 'EXECUTED' | 'FAILED' | 'PENDING_OTP';
   reference?: string;
   failureReason?: string;
+  otpReference?: string;
 }

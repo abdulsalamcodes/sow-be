@@ -7,22 +7,16 @@ import { WalletServiceStub } from '../src/contracts/stubs/wallet.stub.js';
 import { PaymentsServiceStub } from '../src/contracts/stubs/payments.stub.js';
 import { TransactionsServiceStub } from '../src/contracts/stubs/transactions.stub.js';
 import { BanksServiceStub } from '../src/contracts/stubs/banks.stub.js';
+import { BillsServiceStub } from '../src/contracts/stubs/bills.stub.js';
 import { AnalyticsService } from '../src/analytics/analytics.service.js';
 import { IntentsService } from '../src/intents/intents.service.js';
 
 config();
 
 const PROMPTS = [
-  'What is my wallet balance?',
-  'How do I fund my wallet?',
-  'Send 5000 naira to Aisha',
-  'Transfer 2500 to Chidi',
-  'How much did I spend this week?',
-  'Where is most of my money going this month?',
-  'Can I afford a 30000 naira purchase?',
-  'Give me a budget',
-  'Show my recent transactions',
-  'What did I spend last month?',
+  'Buy 500 naira airtime to 08012345678',
+  'Pay electricity bill of 2000 naira to my prepaid meter 12345678901',
+  'I want to pay for DSTV',
 ];
 
 const buildStubIntentsService = (): IntentsService => {
@@ -49,6 +43,7 @@ const main = async (): Promise<void> => {
     analyticsService,
     intentsService: buildStubIntentsService(),
     banksService: new BanksServiceStub(),
+    billsService: new BillsServiceStub(),
   });
 
   const client = new LmlClient({
@@ -58,24 +53,28 @@ const main = async (): Promise<void> => {
   });
 
   for (const prompt of PROMPTS) {
-    const result = await client.chat(
-      [
-        { role: 'system', content: SOW_INSTRUCTIONS },
-        { role: 'user', content: prompt },
-      ],
-      tools.map((tool) => ({
-        type: 'function' as const,
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: toJsonSchema(tool.inputSchema),
-        },
-      })),
-    );
+    try {
+      const result = await client.chat(
+        [
+          { role: 'system', content: SOW_INSTRUCTIONS },
+          { role: 'user', content: prompt },
+        ],
+        tools.map((tool) => ({
+          type: 'function' as const,
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: toJsonSchema(tool.inputSchema),
+          },
+        })),
+      );
 
-    const toolNames =
-      result.toolCalls.map((tc) => tc.name).join(', ') || 'none';
-    console.log(`prompt="${prompt}" → tools=[${toolNames}]`);
+      const toolNames =
+        result.toolCalls.map((tc) => tc.name).join(', ') || 'none';
+      console.log(`prompt="${prompt}" → tools=[${toolNames}]`);
+    } catch (error) {
+      console.log(`prompt="${prompt}" → ERROR: ${(error as Error).message}`);
+    }
   }
 };
 

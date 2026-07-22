@@ -20,12 +20,20 @@ export class BanksService implements BanksServiceContract {
       '/api/v2/disbursements/account/validate',
       { accountNumber, bankCode },
     );
+    const bankName =
+      responseBody.bankName ??
+      (await this.lookupBankName(bankCode));
     return {
       accountNumber: responseBody.accountNumber,
       accountName: responseBody.accountName,
       bankCode: responseBody.bankCode,
-      bankName: responseBody.bankName,
+      bankName,
     };
+  }
+
+  private async lookupBankName(bankCode: string): Promise<string> {
+    const allBanks = await this.listBanks();
+    return allBanks.find((b) => b.bankCode === bankCode)?.bankName ?? `Bank ${bankCode}`;
   }
 
   async findBeneficiaryByName(userId: string, name: string): Promise<ResolvedAccount | null> {

@@ -10,6 +10,7 @@ export interface TransferRequest {
   amountKobo: number;
   destinationAccountNumber: string;
   destinationBankCode: string;
+  destinationAccountName: string;
   narration: string;
   idempotencyKey: string;
 }
@@ -88,6 +89,7 @@ export interface WalletServiceContract {
 
 export interface PaymentsServiceContract {
   executeTransfer(request: TransferRequest): Promise<TransferResult>;
+  validateOtp(otpReference: string, otp: string): Promise<TransferResult>;
 }
 
 export interface TransactionsServiceContract {

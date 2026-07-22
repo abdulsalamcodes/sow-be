@@ -2,6 +2,7 @@ import type {
   WalletServiceContract,
   TransactionsServiceContract,
   BanksServiceContract,
+  BillsServiceContract,
 } from '../../contracts/financial-services.js';
 import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import type { IntentsService } from '../../intents/intents.service.js';
@@ -10,6 +11,7 @@ import { buildTransactionsTools } from './transactions.tools.js';
 import { buildAnalyticsTools } from './analytics.tools.js';
 import { buildTransferTools } from './transfer.tools.js';
 import { buildBanksTools } from './banks.tools.js';
+import { buildBillsTools } from './bills.tools.js';
 import type { ToolDefinition } from './types.js';
 
 export interface ToolDependencies {
@@ -18,6 +20,7 @@ export interface ToolDependencies {
   analyticsService: AnalyticsService;
   intentsService: IntentsService;
   banksService: BanksServiceContract;
+  billsService: BillsServiceContract;
 }
 
 export const buildTools = (
@@ -28,6 +31,7 @@ export const buildTools = (
   ...buildAnalyticsTools(dependencies.analyticsService),
   ...buildTransferTools(dependencies.intentsService),
   ...buildBanksTools(dependencies.banksService),
+  ...buildBillsTools(dependencies.billsService),
 ];
 
 export type { ToolDefinition } from './types.js';

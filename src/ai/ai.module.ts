@@ -4,9 +4,11 @@ import {
   WALLET_SERVICE,
   TRANSACTIONS_SERVICE,
   BANKS_SERVICE,
+  BILLS_SERVICE,
   WalletServiceContract,
   TransactionsServiceContract,
   BanksServiceContract,
+  BillsServiceContract,
 } from '../contracts/financial-services.js';
 import { ContractsModule } from '../contracts/contracts.module.js';
 import { AnalyticsModule } from '../analytics/analytics.module.js';
@@ -36,6 +38,7 @@ const toolDefinitionsProvider: Provider = {
     WALLET_SERVICE,
     TRANSACTIONS_SERVICE,
     BANKS_SERVICE,
+    BILLS_SERVICE,
     AnalyticsService,
     IntentsService,
   ],
@@ -43,6 +46,7 @@ const toolDefinitionsProvider: Provider = {
     walletService: WalletServiceContract,
     transactionsService: TransactionsServiceContract,
     banksService: BanksServiceContract,
+    billsService: BillsServiceContract,
     analyticsService: AnalyticsService,
     intentsService: IntentsService,
   ) =>
@@ -50,6 +54,7 @@ const toolDefinitionsProvider: Provider = {
       walletService,
       transactionsService,
       banksService,
+      billsService,
       analyticsService,
       intentsService,
     }),
