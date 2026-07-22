@@ -64,7 +64,7 @@ export const buildBillsTools = (
         productCode as string,
         customerId as string,
       );
-      return result as Record<string, unknown>;
+      return result;
     },
   },
   {
