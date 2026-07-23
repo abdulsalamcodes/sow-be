@@ -17,9 +17,7 @@ export interface UserState {
 const NAIRA = 100;
 
 export class StateInjector {
-  constructor(
-    private readonly walletService: WalletServiceContract,
-  ) {}
+  constructor(private readonly walletService: WalletServiceContract) {}
 
   async gather(userId: string): Promise<UserState> {
     try {
@@ -53,9 +51,7 @@ export class StateInjector {
 
     if (state.walletAccountNumber && state.walletBankName) {
       const masked = state.walletAccountNumber.slice(-4);
-      lines.push(
-        `Funding account: ${state.walletBankName} ****${masked}`,
-      );
+      lines.push(`Funding account: ${state.walletBankName} ****${masked}`);
     }
 
     if (pendingAction) {

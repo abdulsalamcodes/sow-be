@@ -11,9 +11,10 @@ export const getDatabaseConfig = (
   password: configService.get<string>('DATABASE_PASSWORD'),
   database: configService.get<string>('DATABASE_NAME'),
   autoLoadEntities: true,
-  synchronize: true,
+  synchronize: configService.get<string>('NODE_ENV') !== 'production',
   extra: {
-    max: 2,
+    max: 10,
     idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
   },
 });

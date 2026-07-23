@@ -85,6 +85,7 @@ export interface BillPaymentResult {
 
 export interface WalletServiceContract {
   getWallet(userId: string): Promise<WalletSnapshot>;
+  createWallet(userId: string): Promise<WalletSnapshot>;
 }
 
 export interface PaymentsServiceContract {

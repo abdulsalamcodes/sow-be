@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Conversation } from '../entities/conversation.entity.js';
@@ -18,10 +24,14 @@ import {
   BANKS_SERVICE,
   type BanksServiceContract,
 } from '../contracts/financial-services.js';
+import { WalletService } from '../wallet/wallet.service.js';
+import { KycService } from '../kyc/kyc.service.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 
 const TITLE_MAX_LENGTH = 60;
 const MAX_TOOL_ITERATIONS = 10;
+const MAX_HISTORY_MESSAGES = 30;
+const MAX_TOOL_FAILURES_PER_NAME = 2;
 
 @Injectable()
 export class ChatService {
@@ -41,12 +51,14 @@ export class ChatService {
     private readonly intentsService: IntentsService,
     @Inject(BANKS_SERVICE)
     private readonly banksService: BanksServiceContract,
+    private readonly walletService: WalletService,
+    private readonly kycService: KycService,
   ) {}
 
   async reply(
     userId: string,
     dto: SendMessageDto,
-  ): Promise<{ text: string; preview?: Record<string, unknown> }> {
+  ): Promise<{ text: string; conversationId: string; preview?: Record<string, unknown> }> {
     const startTime = Date.now();
 
     this.logger.log({
@@ -70,13 +82,14 @@ export class ChatService {
       confidence: intent.confidence,
     });
 
-    const text = await this.routeByIntent(
+    const rawText = await this.routeByIntent(
       userId,
       conversation,
       dto.message,
       intent,
     );
 
+    const text = this.stripXmlTags(rawText);
     const pendingAction = await this.fetchPendingAction(userId);
 
     const duration = Date.now() - startTime;
@@ -108,6 +121,7 @@ export class ChatService {
 
     return {
       text: text || 'Sorry, I could not complete that request.',
+      conversationId: conversation.id,
       preview,
     };
   }
@@ -147,6 +161,10 @@ export class ChatService {
   ): Promise<string> {
     if (intent.type === 'check_balance') {
       return this.buildBalanceResponse(userId);
+    }
+
+    if (intent.type === 'create_wallet') {
+      return this.handleCreateWallet(userId, userMessage);
     }
 
     if (intent.type === 'confirm_transfer') {
@@ -201,6 +219,47 @@ export class ChatService {
     } catch {
       return "I couldn't fetch your balance right now. Please try again.";
     }
+  }
+
+  private async handleCreateWallet(
+    userId: string,
+    userMessage: string,
+  ): Promise<string> {
+    const bvn = this.extractBvn(userMessage);
+    if (bvn) {
+      try {
+        await this.kycService.submitKyc(userId, { bvn });
+        const wallet = await this.walletService.createWallet(userId);
+        const naira = Number(wallet.balanceKobo) / 100;
+        return `Your wallet is ready. Account: ${wallet.bankName} ${wallet.accountNumber}, Balance: ₦${naira.toLocaleString('en-NG')}`;
+      } catch (error) {
+        const message =
+          error instanceof BadRequestException
+            ? error.message
+            : 'Could not create your wallet. Please try again.';
+        return message;
+      }
+    }
+
+    try {
+      const wallet = await this.walletService.createWallet(userId);
+      const naira = Number(wallet.balanceKobo) / 100;
+      return `Your wallet is ready. Account: ${wallet.bankName} ${wallet.accountNumber}, Balance: ₦${naira.toLocaleString('en-NG')}`;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        return error.message;
+      }
+      return 'Could not create your wallet. Please try again.';
+    }
+  }
+
+  private stripXmlTags(text: string): string {
+    return text.replace(/<[^>]*>/g, '').trim();
+  }
+
+  private extractBvn(text: string): string | null {
+    const match = text.match(/(?<!\d)\d{11}(?!\d)/);
+    return match ? match[0] : null;
   }
 
   private buildSendMoneyContext(intent: {
@@ -343,10 +402,20 @@ export class ChatService {
       provider?: string;
     },
   ): Promise<string> {
-    const dbMessages = await this.messageRepository.find({
+    const allDbMessages = await this.messageRepository.find({
       where: { conversationId: conversation.id },
       order: { createdAt: 'ASC' },
     });
+
+    if (allDbMessages.length > MAX_HISTORY_MESSAGES) {
+      this.logger.warn({
+        event: 'context_truncated',
+        total: allDbMessages.length,
+        kept: MAX_HISTORY_MESSAGES,
+        conversationId: conversation.id,
+      });
+    }
+    const dbMessages = allDbMessages.slice(-MAX_HISTORY_MESSAGES);
 
     const state = await this.stateInjector.gather(userId);
     const pendingAction = await this.fetchPendingAction(userId);
@@ -402,6 +471,7 @@ export class ChatService {
 
     this.currentConversationId = conversation.id;
     const lmlTools = this.buildLmlToolDefinitions();
+    const toolFailureCounts = new Map<string, number>();
 
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
       const response = await this.lmlClient.chat(lmlMessages, lmlTools);
@@ -430,6 +500,7 @@ export class ChatService {
         })),
       });
 
+      let circuitOpen = false;
       for (const toolCall of response.toolCalls) {
         const resultMessage = await this.executeToolCall(userId, toolCall);
         this.logger.log({
@@ -438,6 +509,27 @@ export class ChatService {
           resultPreview: resultMessage.content?.slice(0, 200),
         });
         lmlMessages.push(resultMessage);
+
+        // Circuit breaker: if the same tool keeps failing, stop calling tools
+        const resultBody = JSON.parse(resultMessage.content || '{}') as Record<string, unknown>;
+        if (resultBody.error) {
+          const failures = (toolFailureCounts.get(toolCall.name) ?? 0) + 1;
+          toolFailureCounts.set(toolCall.name, failures);
+          if (failures >= MAX_TOOL_FAILURES_PER_NAME) {
+            this.logger.warn({
+              event: 'tool_circuit_breaker',
+              tool: toolCall.name,
+              failures,
+            });
+            circuitOpen = true;
+          }
+        }
+      }
+
+      if (circuitOpen) {
+        // Ask the LLM for a final answer without tools, so it can explain the failure
+        const finalResponse = await this.lmlClient.chat(lmlMessages);
+        return finalResponse.content;
       }
     }
 
@@ -562,7 +654,7 @@ export class ChatService {
       where: { id: conversationId },
     });
     if (!conversation || conversation.userId !== userId) {
-      throw new Error('Conversation not found');
+      throw new NotFoundException('Conversation not found');
     }
     return conversation;
   }

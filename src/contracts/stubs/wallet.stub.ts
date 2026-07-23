@@ -14,4 +14,13 @@ export class WalletServiceStub implements WalletServiceContract {
       accountName: 'Sow Demo User',
     });
   }
+
+  async createWallet(_userId: string): Promise<WalletSnapshot> {
+    return {
+      balanceKobo: '0',
+      accountNumber: '7010000002',
+      bankName: 'Wema Bank',
+      accountName: 'Sow Wallet',
+    };
+  }
 }

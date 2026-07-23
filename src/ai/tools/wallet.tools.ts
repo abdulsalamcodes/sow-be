@@ -28,4 +28,19 @@ export const buildWalletTools = (
       };
     },
   },
+  {
+    name: 'create-wallet',
+    description:
+      'Create a new wallet for the user. Requires BVN — if the user has not submitted their BVN, ask them for it first.',
+    inputSchema: z.object({}),
+    execute: async (userId: string) => {
+      const wallet = await walletService.createWallet(userId);
+      return {
+        balanceKobo: wallet.balanceKobo,
+        accountNumber: wallet.accountNumber,
+        bankName: wallet.bankName,
+        accountName: wallet.accountName,
+      };
+    },
+  },
 ];

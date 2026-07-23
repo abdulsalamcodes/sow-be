@@ -84,12 +84,31 @@ export class IntentsService {
     userId: string,
     intentId: string,
   ): Promise<IntentExecutionResult> {
+    // Atomic transition PENDING → CONFIRMED, also checking expiry.
+    // This prevents double-execution from concurrent confirm requests.
+    const updateResult = await this.intentRepository
+      .createQueryBuilder()
+      .update(TransactionIntent)
+      .set({ status: IntentStatus.CONFIRMED })
+      .where(
+        'id = :id AND "userId" = :userId AND status = :status AND "expiresAt" > :now',
+        { id: intentId, userId, status: IntentStatus.PENDING, now: new Date() },
+      )
+      .execute();
+
+    if (updateResult.affected === 0) {
+      // Load the intent to produce a precise error message
+      const intent = await this.intentRepository.findOne({ where: { id: intentId } });
+      if (!intent || intent.userId !== userId) {
+        throw new NotFoundException('Transaction request not found');
+      }
+      if (this.isExpired(intent.expiresAt)) {
+        throw new ConflictException('This request expired — ask Sow again');
+      }
+      throw new ConflictException('This request has already been processed');
+    }
+
     const intent = await this.loadOwnedIntent(userId, intentId);
-    this.assertPending(intent);
-
-    intent.status = IntentStatus.CONFIRMED;
-    await this.intentRepository.save(intent);
-
     return this.execute(intent);
   }
 
@@ -225,20 +244,6 @@ export class IntentsService {
       throw new NotFoundException('Transaction request not found');
     }
     return intent;
-  }
-
-  private assertPending(intent: TransactionIntent): void {
-    if (
-      intent.status === IntentStatus.PENDING &&
-      this.isExpired(intent.expiresAt)
-    ) {
-      intent.status = IntentStatus.EXPIRED;
-      void this.intentRepository.save(intent);
-      throw new ConflictException('This request expired — ask Sow again');
-    }
-    if (intent.status !== IntentStatus.PENDING) {
-      throw new ConflictException('This request has already been processed');
-    }
   }
 
   private buildSummary(amountKobo: number, recipient: ResolvedAccount): string {

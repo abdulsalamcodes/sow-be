@@ -13,7 +13,7 @@ export class ChatController {
   async sendMessage(
     @CurrentUser('id') userId: string,
     @Body() dto: SendMessageDto,
-  ): Promise<{ text: string; preview?: Record<string, unknown> }> {
+  ): Promise<{ text: string; conversationId: string; preview?: Record<string, unknown> }> {
     return this.chatService.reply(userId, dto);
   }
 

@@ -24,8 +24,17 @@ export class PaymentsService implements PaymentsServiceContract {
   ) {}
 
   async executeTransfer(request: TransferRequest): Promise<TransferResult> {
+    this.logger.log({
+      event: 'transfer_execute_start',
+      userId: request.userId,
+      amountKobo: request.amountKobo,
+      idempotencyKey: request.idempotencyKey,
+      destinationBankCode: request.destinationBankCode,
+    });
+
     const wallet = await this.walletRepository.findOne({ where: { userId: request.userId } });
     if (!wallet) {
+      this.logger.warn({ event: 'transfer_no_wallet', userId: request.userId });
       return { reference: '', status: 'FAILED', failureReason: 'Wallet not found' };
     }
 
@@ -34,6 +43,12 @@ export class PaymentsService implements PaymentsServiceContract {
       { accountNumber: this.configService.getOrThrow<string>('MONNIFY_WALLET_ACCOUNT_NUMBER') },
     );
     if (monnifyBalance.amount < request.amountKobo) {
+      this.logger.warn({
+        event: 'transfer_insufficient_balance',
+        userId: request.userId,
+        required: request.amountKobo,
+        available: monnifyBalance.amount,
+      });
       return { reference: '', status: 'FAILED', failureReason: 'Insufficient balance' };
     }
 
@@ -42,8 +57,11 @@ export class PaymentsService implements PaymentsServiceContract {
       { balance: () => `balance - ${request.amountKobo}` },
     );
     if (debitResult.affected === 0) {
+      this.logger.warn({ event: 'transfer_debit_failed', userId: request.userId, walletId: wallet.id });
       return { reference: '', status: 'FAILED', failureReason: 'Insufficient balance' };
     }
+
+    this.logger.log({ event: 'transfer_wallet_debited', userId: request.userId, walletId: wallet.id, amountKobo: request.amountKobo });
 
     try {
       const responseBody = await this.monnify.post<DisbursementWithOtp>(
@@ -76,6 +94,7 @@ export class PaymentsService implements PaymentsServiceContract {
             otpReference: otpData.otpReference,
           }),
         );
+        this.logger.log({ event: 'transfer_awaiting_otp', userId: request.userId, otpReference: otpData.otpReference });
         return {
           reference: otpData.transactionReference,
           status: 'PENDING',
@@ -85,6 +104,8 @@ export class PaymentsService implements PaymentsServiceContract {
       }
 
       const reference = responseBody.reference ?? responseBody.transactionReference ?? request.idempotencyKey;
+      const monnifyStatus = responseBody.status?.toUpperCase() ?? '';
+      const isConfirmed = monnifyStatus === 'SUCCESS';
       await this.transactionRepository.save(
         this.transactionRepository.create({
           walletId: wallet.id,
@@ -93,19 +114,22 @@ export class PaymentsService implements PaymentsServiceContract {
           amount: String(request.amountKobo),
           fee: '0',
           monnifyReference: reference,
-          status: TransactionStatus.PENDING,
+          status: isConfirmed ? TransactionStatus.SUCCESS : TransactionStatus.PENDING,
           reference: randomUUID(),
           narration: request.narration,
         }),
       );
 
-      return { reference, status: 'PENDING' };
+      this.logger.log({ event: 'transfer_execute_end', userId: request.userId, reference, status: isConfirmed ? 'SUCCESS' : 'PENDING' });
+      return { reference, status: isConfirmed ? 'SUCCESS' : 'PENDING' };
     } catch (error) {
+      // Refund local debit since Monnify call failed
       await this.walletRepository.update(
         { id: wallet.id },
         { balance: () => `balance + ${request.amountKobo}` },
       );
       const message = error instanceof MonnifyError ? error.message : 'Transfer failed';
+      this.logger.error({ event: 'transfer_execute_failed', userId: request.userId, amountKobo: request.amountKobo, reason: message });
       return { reference: '', status: 'FAILED', failureReason: message };
     }
   }
@@ -114,7 +138,7 @@ export class PaymentsService implements PaymentsServiceContract {
     try {
       const responseBody = await this.monnify.post<{ transactionReference: string; status: string }>(
         '/api/v2/disbursements/single/validate-otp',
-        { otpReference, otp },
+        { otpReference, authorizationCode: otp },
       );
 
       const transaction = await this.transactionRepository.findOne({

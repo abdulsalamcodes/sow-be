@@ -10,6 +10,8 @@ import { BanksServiceStub } from '../src/contracts/stubs/banks.stub.js';
 import { BillsServiceStub } from '../src/contracts/stubs/bills.stub.js';
 import { AnalyticsService } from '../src/analytics/analytics.service.js';
 import { IntentsService } from '../src/intents/intents.service.js';
+import type { KycService } from '../src/kyc/kyc.service.js';
+
 
 config();
 
@@ -18,6 +20,16 @@ const PROMPTS = [
   'Pay electricity bill of 2000 naira to my prepaid meter 12345678901',
   'I want to pay for DSTV',
 ];
+
+class KycServiceStub {
+  async submitKyc(_userId: string, data: { bvn: string; nin?: string }) {
+    return { bvn: data.bvn, nin: data.nin ?? null, verificationStatus: 'PENDING' as const };
+  }
+
+  async getStatus(_userId: string) {
+    return { bvn: '12345678901', nin: null, verificationStatus: 'PENDING' as const };
+  }
+}
 
 const buildStubIntentsService = (): IntentsService => {
   const banks = new BanksServiceStub();
@@ -44,6 +56,7 @@ const main = async (): Promise<void> => {
     intentsService: buildStubIntentsService(),
     banksService: new BanksServiceStub(),
     billsService: new BillsServiceStub(),
+    kycService: new KycServiceStub() as unknown as KycService,
   });
 
   const client = new LmlClient({

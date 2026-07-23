@@ -54,6 +54,7 @@ export class LmlClient {
     messages: LmlMessage[],
     tools?: LmlToolDefinition[],
     forcedToolName?: string,
+    attempt = 0,
   ): Promise<LmlResponse> {
     const body: Record<string, unknown> = {
       model: this.config.model,
@@ -69,20 +70,36 @@ export class LmlClient {
       }
     }
 
-    const response = await fetch(
-      `${this.config.baseUrl}/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.config.baseUrl}/chat/completions`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.config.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30_000),
         },
-        body: JSON.stringify(body),
-      },
-    );
+      );
+    } catch (networkError) {
+      // Network failure or timeout — retry up to 2 more times
+      if (attempt < 2) {
+        await this.backoff(attempt);
+        return this.sendRequest(messages, tools, forcedToolName, attempt + 1);
+      }
+      throw networkError;
+    }
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
+      // Retry only on transient server/rate-limit errors
+      if ((response.status >= 500 || response.status === 429) && attempt < 2) {
+        await this.backoff(attempt);
+        return this.sendRequest(messages, tools, forcedToolName, attempt + 1);
+      }
       throw new Error(
         `LLM request failed (${response.status}): ${errorBody}`,
       );
@@ -109,5 +126,10 @@ export class LmlClient {
         arguments: tc.function.arguments,
       })),
     };
+  }
+
+  private backoff(attempt: number): Promise<void> {
+    const ms = Math.min(1000 * Math.pow(2, attempt), 8000);
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

@@ -14,3 +14,4 @@ import { UsersModule } from '../users/users.module.js';
   exports: [WalletService],
 })
 export class WalletModule {}
+

@@ -15,6 +15,8 @@ import { AnalyticsModule } from '../analytics/analytics.module.js';
 import { AnalyticsService } from '../analytics/analytics.service.js';
 import { IntentsModule } from '../intents/intents.module.js';
 import { IntentsService } from '../intents/intents.service.js';
+import { KycModule } from '../kyc/kyc.module.js';
+import { KycService } from '../kyc/kyc.service.js';
 import { LmlClient } from './llm-client.js';
 import { SOW_AGENT } from './ai.constants.js';
 import { buildTools } from './tools/index.js';
@@ -41,6 +43,7 @@ const toolDefinitionsProvider: Provider = {
     BILLS_SERVICE,
     AnalyticsService,
     IntentsService,
+    KycService,
   ],
   useFactory: (
     walletService: WalletServiceContract,
@@ -49,6 +52,7 @@ const toolDefinitionsProvider: Provider = {
     billsService: BillsServiceContract,
     analyticsService: AnalyticsService,
     intentsService: IntentsService,
+    kycService: KycService,
   ) =>
     buildTools({
       walletService,
@@ -57,6 +61,7 @@ const toolDefinitionsProvider: Provider = {
       billsService,
       analyticsService,
       intentsService,
+      kycService,
     }),
 };
 
@@ -76,7 +81,7 @@ const stateInjectorProvider: Provider = {
 };
 
 @Module({
-  imports: [ContractsModule, AnalyticsModule, IntentsModule],
+  imports: [ContractsModule, AnalyticsModule, IntentsModule, KycModule],
   providers: [
     lmlClientProvider,
     toolDefinitionsProvider,

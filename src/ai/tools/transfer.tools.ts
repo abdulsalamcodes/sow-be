@@ -15,7 +15,8 @@ export const buildTransferTools = (
       'Do NOT ask for a name when accountNumber and bankCode are already known — the account name is resolved automatically.',
     inputSchema: z
       .object({
-        amountKobo: z.coerce.number().int().positive(),
+        // Strict number (no coercion) — finite to reject Infinity/NaN, max ₦50M per transfer
+        amountKobo: z.number().int().positive().finite().max(5_000_000_000),
         recipientName: z.string().optional(),
         accountNumber: z.string().length(10).optional(),
         bankCode: z.string().optional(),
