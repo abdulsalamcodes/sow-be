@@ -26,12 +26,40 @@ import {
 } from '../contracts/financial-services.js';
 import { WalletService } from '../wallet/wallet.service.js';
 import { KycService } from '../kyc/kyc.service.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
+import { BanksService } from '../banks/banks.service.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 
 const TITLE_MAX_LENGTH = 60;
 const MAX_TOOL_ITERATIONS = 10;
 const MAX_HISTORY_MESSAGES = 30;
 const MAX_TOOL_FAILURES_PER_NAME = 2;
+const TOOL_RESULT_MAX_CHARS = 3000;
+const COMPACTION_THRESHOLD = 10; // summarise overflow only when it's significant
+
+/** Tools relevant to each intent — keeps context window lean */
+const INTENT_TOOL_SET: Partial<Record<string, string[]>> = {
+  send_money: ['create-transfer-intent', 'list-banks', 'get-wallet-balance'],
+  pay_bill: [
+    'list-biller-categories',
+    'list-billers',
+    'list-products',
+    'validate-customer',
+    'pay-bill',
+    'get-wallet-balance',
+  ],
+  financial_analysis: [
+    'get-spending-summary',
+    'get-spending-by-category',
+    'check-affordability',
+    'get-budget-analysis',
+    'get-wallet-balance',
+    'get-transactions',
+  ],
+  get_transactions: ['get-transactions'],
+  create_wallet: ['create-wallet', 'submit-kyc'],
+  fund_wallet: ['get-wallet-balance', 'get-funding-details'],
+};
 
 @Injectable()
 export class ChatService {
@@ -53,12 +81,18 @@ export class ChatService {
     private readonly banksService: BanksServiceContract,
     private readonly walletService: WalletService,
     private readonly kycService: KycService,
+    private readonly analyticsService: AnalyticsService,
+    private readonly banksService2: BanksService,
   ) {}
 
   async reply(
     userId: string,
     dto: SendMessageDto,
-  ): Promise<{ text: string; conversationId: string; preview?: Record<string, unknown> }> {
+  ): Promise<{
+    text: string;
+    conversationId: string;
+    preview?: Record<string, unknown>;
+  }> {
     const startTime = Date.now();
 
     this.logger.log({
@@ -183,7 +217,12 @@ export class ChatService {
         bankName?: string;
         beneficiaryName?: string;
       };
-      const text = await this.runAgent(userId, conversation, sendMoneyContext);
+      const text = await this.runAgent(
+        userId,
+        conversation,
+        intent.type,
+        sendMoneyContext,
+      );
       await this.ensureTransferIntent(
         userId,
         conversation.id,
@@ -199,10 +238,16 @@ export class ChatService {
         customerId: intent.customerId,
         provider: intent.provider,
       };
-      return this.runAgent(userId, conversation, undefined, payBillContext);
+      return this.runAgent(
+        userId,
+        conversation,
+        intent.type,
+        undefined,
+        payBillContext,
+      );
     }
 
-    return this.runAgent(userId, conversation);
+    return this.runAgent(userId, conversation, intent.type);
   }
 
   private async buildBalanceResponse(userId: string): Promise<string> {
@@ -389,6 +434,7 @@ export class ChatService {
   private async runAgent(
     userId: string,
     conversation: Conversation,
+    intentType?: string,
     sendMoneyContext?: {
       amountKobo?: number;
       accountNumber?: string;
@@ -407,7 +453,12 @@ export class ChatService {
       order: { createdAt: 'ASC' },
     });
 
-    if (allDbMessages.length > MAX_HISTORY_MESSAGES) {
+    const overflowMessages =
+      allDbMessages.length > MAX_HISTORY_MESSAGES
+        ? allDbMessages.slice(0, -MAX_HISTORY_MESSAGES)
+        : [];
+
+    if (overflowMessages.length > 0) {
       this.logger.warn({
         event: 'context_truncated',
         total: allDbMessages.length,
@@ -415,9 +466,17 @@ export class ChatService {
         conversationId: conversation.id,
       });
     }
+
     const dbMessages = allDbMessages.slice(-MAX_HISTORY_MESSAGES);
 
-    const state = await this.stateInjector.gather(userId);
+    // Improvement 1: richer state — balance + beneficiaries + weekly spending
+    const [state, beneficiaries, weeklySpend] = await Promise.all([
+      this.stateInjector.gather(userId),
+      this.banksService2.listBeneficiaries(userId).catch(() => []),
+      this.analyticsService
+        .getSpendingSummary(userId, 'week')
+        .catch(() => null),
+    ]);
     const pendingAction = await this.fetchPendingAction(userId);
     const stateText = this.stateInjector.format(state, pendingAction);
 
@@ -427,6 +486,32 @@ export class ChatService {
       'Current user state:',
       stateText,
     ];
+
+    if (beneficiaries.length > 0) {
+      systemParts.push(
+        '',
+        'Saved beneficiaries (use to resolve names without calling list-banks):',
+      );
+      for (const b of beneficiaries) {
+        systemParts.push(
+          `  - ${b.name}: ${b.accountNumber} (${b.bankName ?? 'unknown bank'}, code: ${b.bankCode})`,
+        );
+      }
+    }
+
+    if (weeklySpend) {
+      const spentNaira = (weeklySpend.totalSpentKobo / 100).toLocaleString(
+        'en-NG',
+        { minimumFractionDigits: 2 },
+      );
+      const receivedNaira = (
+        weeklySpend.totalReceivedKobo / 100
+      ).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+      systemParts.push(
+        '',
+        `This week: spent ₦${spentNaira}, received ₦${receivedNaira} (${weeklySpend.transactionCount} transactions).`,
+      );
+    }
 
     if (sendMoneyContext) {
       const contextLine = this.buildSendMoneyContext(sendMoneyContext);
@@ -448,11 +533,20 @@ export class ChatService {
       systemParts.push('', 'Parsed bill payment details:', parts.join(', '));
     }
 
+    // Improvement 2: context compaction — summarise overflow instead of silently dropping it
+    const compactionPart =
+      overflowMessages.length >= COMPACTION_THRESHOLD
+        ? await this.compactMessages(overflowMessages)
+        : null;
+
     const lmlMessages: LmlMessage[] = [
       {
         role: 'system',
         content: systemParts.join('\n'),
       },
+      ...(compactionPart
+        ? [{ role: 'system' as const, content: compactionPart }]
+        : []),
       ...dbMessages.map((message) => {
         if (message.role === MessageRole.TOOL) {
           return {
@@ -470,7 +564,8 @@ export class ChatService {
     ];
 
     this.currentConversationId = conversation.id;
-    const lmlTools = this.buildLmlToolDefinitions();
+    // Improvement 3: tool routing — only send tools relevant to this intent
+    const lmlTools = this.buildLmlToolDefinitions(intentType);
     const toolFailureCounts = new Map<string, number>();
 
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
@@ -511,7 +606,10 @@ export class ChatService {
         lmlMessages.push(resultMessage);
 
         // Circuit breaker: if the same tool keeps failing, stop calling tools
-        const resultBody = JSON.parse(resultMessage.content || '{}') as Record<string, unknown>;
+        const resultBody = JSON.parse(resultMessage.content || '{}') as Record<
+          string,
+          unknown
+        >;
         if (resultBody.error) {
           const failures = (toolFailureCounts.get(toolCall.name) ?? 0) + 1;
           toolFailureCounts.set(toolCall.name, failures);
@@ -590,10 +688,19 @@ export class ChatService {
           );
         }
       }
+      // Improvement 4: truncate large results to avoid context bloat
+      let content = JSON.stringify(result);
+      if (content.length > TOOL_RESULT_MAX_CHARS) {
+        content = content.slice(0, TOOL_RESULT_MAX_CHARS) + '…[truncated]';
+        this.logger.warn({
+          event: 'tool_result_truncated',
+          tool: toolCall.name,
+        });
+      }
       return {
         role: 'tool',
         tool_call_id: toolCall.id,
-        content: JSON.stringify(result),
+        content,
       };
     } catch (error) {
       this.logger.error(
@@ -615,11 +722,11 @@ export class ChatService {
     return this.toolDefinitions.find((tool) => tool.name === name);
   }
 
-  private lmlToolDefinitions: LmlToolDefinition[] | null = null;
+  private allLmlToolDefinitions: LmlToolDefinition[] | null = null;
 
-  private buildLmlToolDefinitions(): LmlToolDefinition[] {
-    if (!this.lmlToolDefinitions) {
-      this.lmlToolDefinitions = this.toolDefinitions.map((tool) => ({
+  private buildLmlToolDefinitions(intentType?: string): LmlToolDefinition[] {
+    if (!this.allLmlToolDefinitions) {
+      this.allLmlToolDefinitions = this.toolDefinitions.map((tool) => ({
         type: 'function' as const,
         function: {
           name: tool.name,
@@ -628,7 +735,42 @@ export class ChatService {
         },
       }));
     }
-    return this.lmlToolDefinitions;
+
+    const allowedNames = intentType ? INTENT_TOOL_SET[intentType] : undefined;
+    if (!allowedNames) return this.allLmlToolDefinitions;
+
+    return this.allLmlToolDefinitions.filter((t) =>
+      allowedNames.includes(t.function.name),
+    );
+  }
+
+  /** Summarise overflow messages into a compact system block to preserve long-term context. */
+  private async compactMessages(messages: Message[]): Promise<string> {
+    try {
+      const lines = messages
+        .filter(
+          (m) =>
+            m.role === MessageRole.USER || m.role === MessageRole.ASSISTANT,
+        )
+        .map(
+          (m) =>
+            `${m.role === MessageRole.USER ? 'User' : 'Assistant'}: ${m.content}`,
+        )
+        .join('\n');
+
+      const summary = await this.lmlClient.chat([
+        {
+          role: 'system',
+          content:
+            'Summarise this conversation history in 3-5 bullet points for a Nigerian financial assistant. Focus on: what the user asked, what actions were taken, what was resolved. Be concise.',
+        },
+        { role: 'user', content: lines },
+      ]);
+      return `Earlier conversation summary:\n${summary.content}`;
+    } catch {
+      // Non-critical — if summarisation fails, proceed without it
+      return '';
+    }
   }
 
   private async loadOrCreateConversation(

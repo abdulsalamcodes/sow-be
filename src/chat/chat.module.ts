@@ -9,6 +9,8 @@ import { IntentsModule } from '../intents/intents.module.js';
 import { ContractsModule } from '../contracts/contracts.module.js';
 import { WalletModule } from '../wallet/wallet.module.js';
 import { KycModule } from '../kyc/kyc.module.js';
+import { AnalyticsModule } from '../analytics/analytics.module.js';
+import { BanksModule } from '../banks/banks.module.js';
 import { ChatService } from './chat.service.js';
 import { ChatController } from './chat.controller.js';
 import { ConfirmIntentController } from './confirm-intent.controller.js';
@@ -22,6 +24,8 @@ import { ConfirmIntentController } from './confirm-intent.controller.js';
     ContractsModule,
     WalletModule,
     KycModule,
+    AnalyticsModule,
+    BanksModule,
   ],
   providers: [ChatService],
   controllers: [ChatController, ConfirmIntentController],
